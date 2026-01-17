@@ -30,7 +30,7 @@ This is a multi-agent AI coding assistant platform built with Next.js 16 and Rea
 ### Database Schema (lib/db/schema.ts)
 - **users** - User profiles and primary OAuth accounts
 - **accounts** - Additional linked accounts (e.g., Vercel users connecting GitHub)
-- **keys** - User-specific API keys (Anthropic, OpenAI, Cursor, Gemini, AI Gateway)
+- **keys** - User-specific API keys (Anthropic, OpenAI, Cursor, Gemini, AI Gateway, GitHub PAT)
 - **apiTokens** - External API tokens for programmatic access (hashed storage)
 - **tasks** - Coding tasks with logs, status, PR info, sandbox IDs
 - **taskMessages** - Chat messages between users and agents
@@ -238,6 +238,7 @@ MCP servers extend Claude Code with additional tools. Configured in `connectors`
 ### Key API Routes
 - `app/api/auth/` - OAuth callbacks, sign-in/sign-out, GitHub connection
 - `app/api/tasks/` - Task CRUD, execution, logs, follow-up messages
+- `app/api/tasks/[taskId]/execute` - Trigger task execution (userId-based auth, used by MCP tools)
 - `app/api/github/` - Repository access, org/repo listing, PR operations
 - `app/api/repos/[owner]/[repo]/` - Commits, issues, pull requests
 - `app/api/connectors/` - MCP server management
@@ -461,8 +462,9 @@ Authorization: Bearer YOUR_API_TOKEN
 ### Available Tools
 
 1. **create-task** - Create a new coding task
-   - Input: `prompt`, `repoUrl`, `selectedAgent`, `selectedModel`, `installDependencies`, `keepAlive`
-   - Returns: `taskId`, `status`, `createdAt`
+   - Input: `prompt`, `repoUrl` (optional), `selectedAgent`, `selectedModel`, `installDependencies`, `keepAlive`, `standalone` (optional)
+   - Returns: `taskId`, `status`, `createdAt`, `executionTriggered` (boolean)
+   - Note: `repoUrl` is optional; if omitted, task runs in standalone mode without GitHub operations
 
 2. **get-task** - Retrieve task details
    - Input: `taskId`
@@ -479,6 +481,32 @@ Authorization: Bearer YOUR_API_TOKEN
 5. **stop-task** - Stop a running task
    - Input: `taskId`
    - Returns: Confirmation of task stopped
+
+### MCP Authentication & GitHub Access
+
+MCP tools now support GitHub Personal Access Tokens (PAT) and session-independent authentication for external integrations.
+
+**GitHub Token Priority Order** (`lib/api-keys/user-keys.ts`):
+1. GitHub PAT stored in `keys` table (provider='github') - explicitly saved by user
+2. Connected GitHub account (accounts table - OAuth connection)
+3. Primary GitHub account (users table - if signed in with GitHub)
+
+**Helper Functions** (`lib/api-keys/user-keys.ts`):
+- `getApiKeysByUserId(userId)` - Retrieves all user API keys including GitHub PAT (no session required)
+- `getGitHubTokenByUserId(userId)` - Retrieves GitHub token with priority order above (no session required)
+
+**Task Execution Without Session** (`POST /api/tasks/[taskId]/execute`):
+- MCP `create-task` tool automatically triggers execution after task creation
+- Uses userId-based authentication (no session cookie required)
+- Accepts `userId` in request body
+- Enables external systems and MCP clients to execute tasks programmatically
+
+**Standalone Mode Support**:
+- `repoUrl` is optional in `create-task` tool
+- If omitted or `standalone: true`, task runs without GitHub operations
+- GitHub token is only required if `repoUrl` is provided
+- Enables code generation, analysis, and scripting without repository access
+- Optional `templateRepo` parameter for public template repositories
 
 ### Client Configuration
 

@@ -6,7 +6,9 @@ The AA Coding Agent platform exposes a Model Context Protocol (MCP) server that 
 
 - [Introduction](#introduction)
 - [Authentication Setup](#authentication-setup)
+- [GitHub Authentication for MCP](#github-authentication-for-mcp)
 - [Available Tools](#available-tools)
+- [Standalone Mode](#standalone-mode)
 - [Client Configuration](#client-configuration)
 - [Error Handling](#error-handling)
 - [Rate Limiting](#rate-limiting)
@@ -72,6 +74,56 @@ Authorization: Bearer YOUR_API_TOKEN
 
 This method is more secure but requires client support for custom headers.
 
+## GitHub Authentication for MCP
+
+When creating coding tasks via MCP, the server needs access to GitHub repositories. Since MCP operates outside the web application's OAuth session context, GitHub authentication is handled differently than the web UI.
+
+### Why GitHub PAT is Needed for MCP
+
+- **MCP is Stateless**: Unlike the web UI where users maintain OAuth sessions, MCP tools work with just an API token
+- **Sandbox Execution**: When a task runs in a Vercel sandbox, it needs to access the repository to clone code and push branches
+- **No Session Context**: The sandbox environment doesn't have access to your web session credentials
+
+### Setting Up GitHub PAT for MCP
+
+1. **Generate a Personal Access Token (PAT)** in GitHub:
+   - Go to [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens)
+   - Click "Generate new token" (classic or fine-grained)
+   - Select scopes: `repo` (for repository access)
+   - Copy the token immediately (cannot be retrieved later)
+
+2. **Store the GitHub PAT in Settings**:
+   - Sign in to the AA Coding Agent web application
+   - Navigate to **Settings** (`/settings`)
+   - Go to **API Keys**
+   - Click **"Add GitHub PAT"** and paste your token
+   - The token is encrypted and stored securely
+
+3. **Use MCP Without Session**:
+   - Once a GitHub PAT is configured, MCP tools can access repositories
+   - No OAuth session or login is required for MCP clients
+   - The sandbox automatically uses your stored PAT for Git operations
+
+### GitHub Token Priority
+
+The system uses the following priority order for GitHub authentication:
+
+1. **GitHub PAT from Settings** (highest priority) - Stored in API Keys
+2. **Connected GitHub Account** (via OAuth) - Set in Settings
+3. **Primary GitHub Account** (from initial signup) - Lowest priority
+
+This means if you've configured a GitHub PAT for MCP, that takes precedence over OAuth tokens.
+
+### Revoking GitHub PAT
+
+If you need to revoke a GitHub PAT:
+1. Navigate to **Settings** > **API Keys**
+2. Find the GitHub PAT entry
+3. Click **"Revoke"** to remove it
+4. Optionally revoke the token in GitHub settings as well
+
+After revocation, MCP requests that require GitHub access will fall back to your connected OAuth account (if available).
+
 ## Available Tools
 
 ### 1. create-task
@@ -83,11 +135,13 @@ Create a new coding task with an AI agent.
 ```json
 {
   "prompt": "string (required, 1-5000 chars)",
-  "repoUrl": "string (required, valid GitHub URL)",
+  "repoUrl": "string (optional, valid GitHub URL)",
   "selectedAgent": "string (optional, default: claude)",
   "selectedModel": "string (optional)",
   "installDependencies": "boolean (optional, default: false)",
-  "keepAlive": "boolean (optional, default: false)"
+  "keepAlive": "boolean (optional, default: false)",
+  "standalone": "boolean (optional, default: false)",
+  "templateRepo": "string (optional, template repository URL for scaffolding)"
 }
 ```
 
@@ -99,7 +153,7 @@ Create a new coding task with an AI agent.
 - `gemini` - Google Gemini CLI
 - `opencode` - OpenCode
 
-**Example Input:**
+**Example Input (with repository):**
 
 ```json
 {
@@ -112,16 +166,48 @@ Create a new coding task with an AI agent.
 }
 ```
 
+**Example Input (standalone mode):**
+
+```json
+{
+  "prompt": "Create a Node.js utility library for date formatting",
+  "selectedAgent": "claude",
+  "selectedModel": "claude-sonnet-4-5-20250929",
+  "standalone": true,
+  "installDependencies": false
+}
+```
+
+**Example Input (with template repository):**
+
+```json
+{
+  "prompt": "Build a React dashboard component",
+  "templateRepo": "https://github.com/owner/react-template",
+  "selectedAgent": "claude",
+  "selectedModel": "claude-sonnet-4-5-20250929",
+  "installDependencies": true
+}
+```
+
 **Response:**
 
 ```json
 {
   "success": true,
   "taskId": "abc123def456",
-  "status": "pending",
+  "status": "processing",
+  "executionTriggered": true,
   "createdAt": "2026-01-17T10:30:00Z"
 }
 ```
+
+**Response Fields:**
+- `success` - Whether the task was created successfully
+- `taskId` - Unique identifier for the task (use for get-task and continue-task)
+- `status` - Current task status (`processing` if automatically triggered, `pending` if queued)
+- `executionTriggered` - Whether the task execution was automatically started
+- `createdAt` - ISO 8601 timestamp of task creation
 
 ### 2. get-task
 
@@ -298,6 +384,81 @@ Stop a running task and terminate its sandbox.
   "message": "Task stopped successfully"
 }
 ```
+
+## Standalone Mode
+
+Standalone mode allows creating coding tasks without requiring a GitHub repository. This is useful for code generation, scaffolding, and development work that doesn't need to integrate with an existing repository.
+
+### When to Use Standalone Mode
+
+- **Code Generation**: Generate new code libraries, utilities, or frameworks from scratch
+- **Scaffolding**: Create boilerplate for new projects without cloning existing repos
+- **Prototyping**: Develop proof-of-concept code quickly
+- **No GitHub Access**: Work without connecting GitHub or configuring a GitHub PAT
+- **Template-Based Work**: Use a template repository as a starting point
+
+### Creating Standalone Tasks
+
+Set `standalone: true` in the create-task request:
+
+```json
+{
+  "prompt": "Create a TypeScript utility library for currency conversion",
+  "selectedAgent": "claude",
+  "selectedModel": "claude-sonnet-4-5-20250929",
+  "standalone": true,
+  "installDependencies": false
+}
+```
+
+### Key Differences from Repository Mode
+
+| Feature | Standalone | Repository |
+|---------|-----------|-----------|
+| **GitHub Required** | No | Yes |
+| **Clone Repo** | No | Yes |
+| **Push Changes** | No | Yes (creates PR) |
+| **repoUrl** | Not needed | Required |
+| **Access token** | Not required | GitHub PAT or OAuth |
+| **Output** | Files in sandbox | PR with changes |
+| **Branch** | N/A | Generated branch |
+
+### Working with Standalone Tasks
+
+1. **Create the task** with `standalone: true`
+2. **Agent generates code** in the sandbox environment
+3. **View results** in the sandbox URL from the task details
+4. **Download output** or use via MCP client for further processing
+5. **No PR created** - results stay in the sandbox
+
+### Combining Standalone with Templates
+
+You can use a template repository as a starting point for standalone tasks:
+
+```json
+{
+  "prompt": "Build a REST API using the Express template",
+  "templateRepo": "https://github.com/owner/express-template",
+  "selectedAgent": "claude",
+  "selectedModel": "claude-sonnet-4-5-20250929",
+  "installDependencies": true
+}
+```
+
+When using a template:
+- The template repository is cloned into the sandbox
+- The agent works on top of the template structure
+- No GitHub access needed unless you want to push changes
+- Output remains in the sandbox (not pushed to GitHub)
+
+### Standalone Mode Limitations
+
+- **No Pull Request Creation** - Changes cannot be automatically pushed to GitHub
+- **Sandbox Lifespan** - Files exist only while the sandbox is active
+- **No Git Integration** - Commit history not preserved
+- **Manual Export** - You must extract files from the sandbox URL
+
+If you need to push changes to GitHub, use regular repository mode with a `repoUrl` instead.
 
 ## Client Configuration
 

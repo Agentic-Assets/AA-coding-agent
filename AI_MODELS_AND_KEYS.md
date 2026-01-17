@@ -32,7 +32,7 @@ export const keys = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }), // Foreign key to users table
     provider: text('provider', {
-      enum: ['anthropic', 'openai', 'cursor', 'gemini', 'aigateway'],
+      enum: ['anthropic', 'openai', 'cursor', 'gemini', 'aigateway', 'github'],
     }).notNull(),
     value: text('value').notNull(), // Encrypted API key value
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -47,7 +47,7 @@ export const keys = pgTable(
 
 **Key Features:**
 - **User-scoped**: Each key is tied to a specific user via `userId` foreign key
-- **Provider-based**: Supports 5 providers: `anthropic`, `openai`, `cursor`, `gemini`, `aigateway`
+- **Provider-based**: Supports 6 providers: `anthropic`, `openai`, `cursor`, `gemini`, `aigateway`, `github`
 - **Encrypted storage**: All key values are encrypted at rest using AES-256-GCM (see `lib/crypto.ts`)
 - **Unique per provider**: A user can only have one key per provider (enforced by unique index)
 - **Timestamped**: Tracks creation and last update times for audit trails
@@ -61,6 +61,7 @@ export const keys = pgTable(
 | `cursor` | Cursor agent | `CURSOR_API_KEY` | Cursor IDE agent |
 | `gemini` | Gemini agent | `GEMINI_API_KEY` | Google Gemini models |
 | `openai` | Codex, OpenCode agents | `OPENAI_API_KEY` | OpenAI GPT models (via AI Gateway) |
+| `github` | MCP/API access | None (see GitHub token priority below) | GitHub Personal Access Token (PAT) for session-independent authentication |
 
 ### User API Key Retrieval Flow
 
@@ -108,6 +109,71 @@ export async function getUserApiKey(provider: Provider): Promise<string | undefi
 3. If user key found, decrypt and return it
 4. If no user key found, fall back to environment variable
 5. If no user authenticated, use environment variable
+
+### GitHub Token Priority (MCP/API Access)
+
+When GitHub access is needed for MCP tools or external API calls, the system checks tokens in this priority order:
+
+**Priority 1: GitHub PAT in keys table** (explicitly stored by user in Settings)
+- Provider: `github`
+- Use case: Direct control over GitHub access for MCP/API operations
+- Optional: Users can store a GitHub Personal Access Token for explicit control
+
+**Priority 2: Connected GitHub account** (linked via OAuth in accounts table)
+- Automatically available if user has connected their GitHub account
+- Use case: Secondary GitHub account connection
+
+**Priority 3: Primary GitHub account** (OAuth login account in users table)
+- Automatically available if user signed in with GitHub
+- Use case: Fallback to primary authentication
+
+This priority order is implemented in `lib/api-keys/user-keys.ts`:
+
+```typescript
+/**
+ * Get GitHub access token for a user by their ID
+ * Checks in order:
+ * 1. GitHub PAT stored in keys table
+ * 2. Connected GitHub account (accounts table)
+ * 3. Primary GitHub account (users table if they signed in with GitHub)
+ */
+export async function getGitHubTokenByUserId(userId: string): Promise<string | null> {
+  // Priority 1: Check for GitHub PAT in keys table
+  const githubKey = await db
+    .select({ value: keys.value })
+    .from(keys)
+    .where(and(eq(keys.userId, userId), eq(keys.provider, 'github')))
+    .limit(1)
+
+  if (githubKey[0]?.value) {
+    return decrypt(githubKey[0].value)
+  }
+
+  // Priority 2: Check if user has GitHub as a connected account
+  const account = await db
+    .select({ accessToken: accounts.accessToken })
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.provider, 'github')))
+    .limit(1)
+
+  if (account[0]?.accessToken) {
+    return decrypt(account[0].accessToken)
+  }
+
+  // Priority 3: Check if user signed in with GitHub (primary account)
+  const user = await db
+    .select({ accessToken: users.accessToken })
+    .from(users)
+    .where(and(eq(users.id, userId), eq(users.provider, 'github')))
+    .limit(1)
+
+  if (user[0]?.accessToken) {
+    return decrypt(user[0].accessToken)
+  }
+
+  return null
+}
+```
 
 ### Encryption & Decryption
 
@@ -475,7 +541,7 @@ export async function POST(req: NextRequest) {
     const { provider, apiKey } = body as { provider: Provider; apiKey: string }
 
     // Validate inputs
-    if (!['openai', 'gemini', 'cursor', 'anthropic', 'aigateway'].includes(provider)) {
+    if (!['openai', 'gemini', 'cursor', 'anthropic', 'aigateway', 'github'].includes(provider)) {
       return NextResponse.json({ error: 'Invalid provider' }, { status: 400 })
     }
 
@@ -551,6 +617,8 @@ const AGENT_API_KEY_REQUIREMENTS: Record<string, Provider[]> = {
   opencode: [], // Will be determined dynamically based on selected model
 }
 ```
+
+**Note on GitHub**: The `github` provider is optional and primarily used for MCP/API access when OAuth session is not available. See "GitHub Token Priority (MCP/API Access)" section above for automatic fallback behavior.
 
 ---
 
@@ -1236,6 +1304,7 @@ GitHub OAuth tokens are:
    - OpenAI/AI Gateway: `sk-*` or `vck_*`
    - Cursor: Check Cursor documentation for format
    - Gemini: Check Google AI documentation for format
+   - GitHub: GitHub PAT (usually starts with `ghp_`, `gho_`, `ghu_`, `ghs_`, or `ghr_`). For MCP/API access, GitHub token is optional - system will automatically fall back to connected OAuth account or primary GitHub login
 
 ```bash
 # Check environment variables on Vercel
@@ -1373,10 +1442,11 @@ const AGENT_MODELS = {
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.2 | Jan 2025 | Added GitHub PAT support for MCP/API access with priority-based token resolution |
 | 1.1 | Jan 2025 | Added Claude AI Gateway support documentation |
 | 1.0 | Jan 2025 | Initial comprehensive documentation |
 
 ---
 
-**Last Updated**: January 15, 2025
+**Last Updated**: January 17, 2025
 **Maintained By**: Agentic Assets Team

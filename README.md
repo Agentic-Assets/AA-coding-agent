@@ -134,7 +134,8 @@ The platform exposes an MCP server that integrates with AI assistants like Claud
 **Quick Setup for Claude Desktop:**
 
 1. Generate an API token from Settings (`/settings`)
-2. Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+2. (Optional) Add your GitHub PAT in Settings > API Keys for repository access
+3. Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
 {
@@ -146,21 +147,27 @@ The platform exposes an MCP server that integrates with AI assistants like Claud
 }
 ```
 
-3. Restart Claude Desktop and use natural language to create tasks:
+4. Restart Claude Desktop and use natural language to create tasks:
 
 ```
 Create a coding task to add unit tests for my auth module in
 https://github.com/myorg/myrepo using Claude Sonnet
 ```
 
+**Key Features:**
+- **Auto-Execution**: Tasks automatically start executing after creation (no manual trigger needed)
+- **GitHub Access**: Store your GitHub PAT in Settings > API Keys for seamless repository access via MCP
+- **Standalone Mode**: Create tasks without a repository for code generation, scaffolding, and prototyping
+- **Template Support**: Use template repositories as starting points for new projects
+
 **Available MCP Tools:**
-- `create-task` - Create new coding tasks
+- `create-task` - Create new coding tasks (supports standalone mode and optional repoUrl)
 - `get-task` - Retrieve task details and status
 - `continue-task` - Send follow-up messages
 - `list-tasks` - List your tasks with filters
 - `stop-task` - Stop running tasks
 
-For complete MCP documentation including Cursor and Windsurf setup, see **[docs/MCP_SERVER.md](docs/MCP_SERVER.md)**.
+For complete MCP documentation including Cursor and Windsurf setup, standalone mode, and GitHub authentication, see **[docs/MCP_SERVER.md](docs/MCP_SERVER.md)**.
 
 ### REST API
 
@@ -175,6 +182,8 @@ Create tasks programmatically using standard HTTP requests.
 
 #### Create Tasks via API
 
+**With Repository:**
+
 ```bash
 curl -X POST https://your-app.vercel.app/api/tasks \
   -H "Authorization: Bearer YOUR_API_TOKEN" \
@@ -186,6 +195,22 @@ curl -X POST https://your-app.vercel.app/api/tasks \
     "model": "claude-sonnet-4-5-20250929"
   }'
 ```
+
+**Standalone Mode (No Repository):**
+
+```bash
+curl -X POST https://your-app.vercel.app/api/tasks \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "selectedAgent": "claude",
+    "prompt": "Create a TypeScript utility library for currency conversion",
+    "model": "claude-sonnet-4-5-20250929",
+    "standalone": true
+  }'
+```
+
+**Note:** `repositoryUrl` is optional. For repository-based tasks, configure your GitHub PAT in Settings > API Keys. Tasks automatically start executing after creation.
 
 #### Token Security
 
@@ -519,6 +544,29 @@ pnpm start
 - **Encryption**: All sensitive data (tokens, API keys) is encrypted at rest using per-user encryption
 
 ## Changelog
+
+### Version 2.1.0 - MCP GitHub Access & Standalone Mode
+
+**New Features:**
+
+- **GitHub PAT in API Keys**: Store your GitHub Personal Access Token in Settings > API Keys for MCP access (alternative to OAuth)
+- **MCP Auto-Execution**: Tasks created via MCP now automatically start execution (no manual trigger needed)
+- **Standalone Mode**: Create tasks without a repository for code generation, scaffolding, and prototyping
+- **Template Repositories**: Use template repositories as starting points for standalone tasks
+- **Optional Repository URL**: `repositoryUrl` is now optional for API and MCP - tasks work in standalone mode if no repo is provided
+
+**Technical Changes:**
+
+- New endpoint: `POST /api/tasks/[taskId]/execute` for triggering task execution
+- MCP create-task tool now returns `executionTriggered` flag
+- GitHub API key provider added to user keys management
+- Task execution supports standalone mode without repository cloning
+
+**Migration Notes:**
+
+- No database changes required
+- Existing tasks continue to work as before
+- GitHub PAT configuration is optional - users can continue using OAuth
 
 ### Version 2.0.0 - Major Update: User Authentication & Security
 
