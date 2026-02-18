@@ -1,16 +1,10 @@
-"use client";
+'use client'
 
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react'
 
-import { SiReact } from "@icons-pack/react-simple-icons";
-import {
-  Task,
-  TaskContent,
-  TaskItem,
-  TaskItemFile,
-  TaskTrigger,
-} from "@/components/ai-elements/task";
-import { nanoid } from "nanoid";
+import { SiReact } from '@icons-pack/react-simple-icons'
+import { Task, TaskContent, TaskItem, TaskItemFile, TaskTrigger } from '@/components/ai-elements/task'
+import { nanoid } from 'nanoid'
 
 const Example = () => {
   const tasks: { key: string; value: ReactNode }[] = [
@@ -27,8 +21,8 @@ const Example = () => {
         </span>
       ),
     },
-    { key: nanoid(), value: "Scanning 52 files" },
-    { key: nanoid(), value: "Scanning 2 files" },
+    { key: nanoid(), value: 'Scanning 52 files' },
+    { key: nanoid(), value: 'Scanning 2 files' },
     {
       key: nanoid(),
       value: (
@@ -41,10 +35,10 @@ const Example = () => {
         </span>
       ),
     },
-  ];
+  ]
 
   return (
-    <div style={{ height: "200px" }}>
+    <div style={{ height: '200px' }}>
       <Task className="w-full">
         <TaskTrigger title="Found project files" />
         <TaskContent>
@@ -54,7 +48,7 @@ const Example = () => {
         </TaskContent>
       </Task>
     </div>
-  );
-};
+  )
+}
 
-export default Example;
+export default Example

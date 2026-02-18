@@ -1,12 +1,6 @@
-"use client";
+'use client'
 
-import {
-  Snippet,
-  SnippetAddon,
-  SnippetCopyButton,
-  SnippetInput,
-  SnippetText,
-} from "@/components/ai-elements/snippet";
+import { Snippet, SnippetAddon, SnippetCopyButton, SnippetInput, SnippetText } from '@/components/ai-elements/snippet'
 
 const Example = () => (
   <div className="flex size-full items-center justify-center p-4">
@@ -20,6 +14,6 @@ const Example = () => (
       </SnippetAddon>
     </Snippet>
   </div>
-);
+)
 
-export default Example;
+export default Example
