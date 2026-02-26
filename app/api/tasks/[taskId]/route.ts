@@ -12,138 +12,131 @@ interface RouteParams {
   }>
 }
 
+function jsonError(error: string, status: number) {
+  return NextResponse.json({ error }, { status })
+}
+
+async function getAuthenticatedUser(request: NextRequest) {
+  const user = await getAuthFromRequest(request)
+  if (!user?.id) return null
+  return user
+}
+
+async function getUserTask(taskId: string, userId: string) {
+  const [task] = await db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, taskId), eq(tasks.userId, userId), isNull(tasks.deletedAt)))
+    .limit(1)
+  return task || null
+}
+
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getAuthFromRequest(request)
-    if (!user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const user = await getAuthenticatedUser(request)
+    if (!user) return jsonError('Unauthorized', 401)
 
     const { taskId } = await params
-    const task = await db
-      .select()
-      .from(tasks)
-      .where(and(eq(tasks.id, taskId), eq(tasks.userId, user.id), isNull(tasks.deletedAt)))
-      .limit(1)
+    const task = await getUserTask(taskId, user.id)
 
-    if (!task[0]) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
-    }
+    if (!task) return jsonError('Task not found', 404)
 
-    return NextResponse.json({ task: task[0] })
+    return NextResponse.json({ task })
   } catch (error) {
     console.error('Error fetching task')
-    return NextResponse.json({ error: 'Failed to fetch task' }, { status: 500 })
+    return jsonError('Failed to fetch task', 500)
+  }
+}
+
+async function stopTaskExecution(taskId: string, userId: string) {
+  const logger = createTaskLogger(taskId)
+
+  try {
+    await logger.info('Stop request received - terminating task execution...')
+
+    const [updatedTask] = await db
+      .update(tasks)
+      .set({
+        status: 'stopped',
+        error: 'Task was stopped by user',
+        updatedAt: new Date(),
+        completedAt: new Date(),
+      })
+      .where(eq(tasks.id, taskId))
+      .returning()
+
+    await terminateSandbox(taskId, logger)
+    await logger.error('Task execution stopped by user')
+
+    return { success: true, task: updatedTask }
+  } catch (error) {
+    console.error('Error stopping task')
+    await logger.error('Failed to stop task properly')
+    return { success: false }
+  }
+}
+
+async function terminateSandbox(taskId: string, logger: ReturnType<typeof createTaskLogger>) {
+  try {
+    const dbStopResult = await stopSandboxFromDB(taskId)
+    if (dbStopResult.success) {
+      await logger.success('Sandbox terminated successfully')
+      return
+    }
+
+    const killResult = await killSandbox(taskId)
+    if (killResult.success) {
+      await logger.success('Sandbox terminated successfully')
+    } else {
+      await logger.error('Failed to terminate sandbox')
+    }
+  } catch (killError) {
+    console.error('Failed to kill sandbox during stop')
+    await logger.error('Failed to terminate sandbox')
   }
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getAuthFromRequest(request)
-    if (!user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const user = await getAuthenticatedUser(request)
+    if (!user) return jsonError('Unauthorized', 401)
 
     const { taskId } = await params
     const body = await request.json()
 
-    // Check if task exists and belongs to user
-    const [existingTask] = await db
-      .select()
-      .from(tasks)
-      .where(and(eq(tasks.id, taskId), eq(tasks.userId, user.id), isNull(tasks.deletedAt)))
-      .limit(1)
+    const existingTask = await getUserTask(taskId, user.id)
+    if (!existingTask) return jsonError('Task not found', 404)
 
-    if (!existingTask) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+    if (body.action !== 'stop') return jsonError('Invalid action', 400)
+
+    if (existingTask.status !== 'processing') {
+      return jsonError('Task can only be stopped when it is in progress', 400)
     }
 
-    // Handle stop action
-    if (body.action === 'stop') {
-      // Only allow stopping tasks that are currently processing
-      if (existingTask.status !== 'processing') {
-        return NextResponse.json({ error: 'Task can only be stopped when it is in progress' }, { status: 400 })
-      }
+    const result = await stopTaskExecution(taskId, user.id)
 
-      const logger = createTaskLogger(taskId)
+    if (!result.success) return jsonError('Failed to stop task', 500)
 
-      try {
-        // Log the stop request
-        await logger.info('Stop request received - terminating task execution...')
-
-        // Update task status to stopped
-        const [updatedTask] = await db
-          .update(tasks)
-          .set({
-            status: 'stopped',
-            error: 'Task was stopped by user',
-            updatedAt: new Date(),
-            completedAt: new Date(),
-          })
-          .where(eq(tasks.id, taskId))
-          .returning()
-
-        // Kill the sandbox immediately and aggressively
-        // Try DB-backed method first (works across serverless invocations)
-        try {
-          const dbStopResult = await stopSandboxFromDB(taskId)
-          if (dbStopResult.success) {
-            await logger.success('Sandbox terminated successfully')
-          } else {
-            // Fallback to in-memory kill if DB method failed
-            const killResult = await killSandbox(taskId)
-            if (killResult.success) {
-              await logger.success('Sandbox terminated successfully')
-            } else {
-              await logger.error('Failed to terminate sandbox')
-            }
-          }
-        } catch (killError) {
-          console.error('Failed to kill sandbox during stop')
-          await logger.error('Failed to terminate sandbox')
-        }
-
-        await logger.error('Task execution stopped by user')
-
-        return NextResponse.json({
-          message: 'Task stopped successfully',
-          task: updatedTask,
-        })
-      } catch (error) {
-        console.error('Error stopping task')
-        await logger.error('Failed to stop task properly')
-        return NextResponse.json({ error: 'Failed to stop task' }, { status: 500 })
-      }
-    }
-
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+    return NextResponse.json({
+      message: 'Task stopped successfully',
+      task: result.task,
+    })
   } catch (error) {
     console.error('Error updating task')
-    return NextResponse.json({ error: 'Failed to update task' }, { status: 500 })
+    return jsonError('Failed to update task', 500)
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getAuthFromRequest(request)
-    if (!user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const user = await getAuthenticatedUser(request)
+    if (!user) return jsonError('Unauthorized', 401)
 
     const { taskId } = await params
 
-    // Check if task exists and belongs to user (and not deleted)
-    const existingTask = await db
-      .select()
-      .from(tasks)
-      .where(and(eq(tasks.id, taskId), eq(tasks.userId, user.id), isNull(tasks.deletedAt)))
-      .limit(1)
+    const existingTask = await getUserTask(taskId, user.id)
+    if (!existingTask) return jsonError('Task not found', 404)
 
-    if (!existingTask[0]) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
-    }
-
-    // Soft delete the task by setting deletedAt
     await db
       .update(tasks)
       .set({ deletedAt: new Date() })
@@ -152,6 +145,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ message: 'Task deleted successfully' })
   } catch (error) {
     console.error('Error deleting task')
-    return NextResponse.json({ error: 'Failed to delete task' }, { status: 500 })
+    return jsonError('Failed to delete task', 500)
   }
 }
