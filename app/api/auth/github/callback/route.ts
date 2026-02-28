@@ -72,9 +72,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     })
 
     if (!tokenResponse.ok) {
-      console.error('[GitHub Callback] Token exchange failed with status:', tokenResponse.status)
-      const errorText = await tokenResponse.text()
-      console.error('[GitHub Callback] Error response:')
+      console.error('[GitHub Callback] Token exchange failed')
       return new Response('Failed to exchange code for token', { status: 400 })
     }
 
@@ -85,8 +83,6 @@ export async function GET(req: NextRequest): Promise<Response> {
       error?: string
       error_description?: string
     }
-
-    console.log('[GitHub Callback] Token data received, has access_token:', !!tokenData.access_token)
 
     if (!tokenData.access_token) {
       console.error('GitHub OAuth token exchange failed')
@@ -116,7 +112,7 @@ export async function GET(req: NextRequest): Promise<Response> {
         return new Response('Failed to create session', { status: 500 })
       }
 
-      console.log('[GitHub Callback] GitHub session created for user:', session.user.id)
+      console.log('[GitHub Callback] GitHub session created successfully')
       // Note: Tokens are already stored in users table by upsertUser() in createGitHubSession()
 
       // Create response with redirect
@@ -158,9 +154,7 @@ export async function GET(req: NextRequest): Promise<Response> {
 
         // If the GitHub account belongs to a different user, we need to merge accounts
         if (connectedUserId !== storedUserId) {
-          console.log(
-            `[GitHub Callback] Merging accounts: GitHub account ${githubUser.id} belongs to user ${connectedUserId}, connecting to user ${storedUserId}`,
-          )
+          console.log('[GitHub Callback] Merging accounts: GitHub account belongs to different user, merging')
 
           // Transfer all tasks, connectors, accounts, and keys from old user to new user
           await db.update(tasks).set({ userId: storedUserId! }).where(eq(tasks.userId, connectedUserId))
@@ -171,9 +165,7 @@ export async function GET(req: NextRequest): Promise<Response> {
           // Delete the old user record (this will cascade delete their accounts/keys)
           await db.delete(users).where(eq(users.id, connectedUserId))
 
-          console.log(
-            `[GitHub Callback] Account merge complete. Old user ${connectedUserId} merged into ${storedUserId}`,
-          )
+          console.log('[GitHub Callback] Account merge complete')
 
           // Update the GitHub account token
           await db
