@@ -348,9 +348,7 @@ export async function executeClaudeInSandbox(
     // Log what we're trying to do
     const modelToUse = selectedModel || 'claude-sonnet-4-5-20250929'
     if (logger) {
-      await logger.info(
-        `Attempting to execute Claude CLI with model ${modelToUse} and instruction: ${instruction.substring(0, 100)}...`,
-      )
+      await logger.info('Attempting to execute Claude CLI with selected model and instruction')
     }
 
     // Determine environment prefix based on auth method
@@ -517,17 +515,12 @@ export async function executeClaudeInSandbox(
               // Track session ID from any source
               if (!extractedSessionId && parsed.session_id) {
                 extractedSessionId = parsed.session_id
-                console.log('Extracted session ID from', parsed.type, ':', extractedSessionId)
               }
 
               // Extract session ID and mark as completed from result chunks
               if (parsed.type === 'result') {
-                console.log('Result chunk received:', JSON.stringify(parsed).substring(0, 300))
                 if (parsed.session_id) {
                   extractedSessionId = parsed.session_id
-                  console.log('Extracted session ID:', extractedSessionId)
-                } else {
-                  console.log('No session_id in result chunk')
                 }
                 isCompleted = true
               }
@@ -668,7 +661,7 @@ export async function executeClaudeInSandbox(
       await runAndLogCommand(sandbox, 'ls', ['-la'], logger)
     }
 
-    console.log('Claude execution completed, returning sessionId:', extractedSessionId)
+    // Claude execution completed
 
     return {
       success: true,
