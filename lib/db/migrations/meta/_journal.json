@@ -183,6 +183,13 @@
       "when": 1769049600000,
       "tag": "0025_add_rate_limit_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1775943471275,
+      "tag": "0026_yellow_tyrannus",
+      "breakpoints": true
     }
   ]
 }

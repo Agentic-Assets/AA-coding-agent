@@ -254,6 +254,11 @@ export function AppLayout({ children, initialSidebarWidth, initialSidebarOpen, i
       currentSubAgent: null,
       lastHeartbeat: null,
       heartbeatExtensionCount: 0,
+      // Sandbox mode and snapshot fields (Phase 0 scaffold)
+      sandboxMode: null,
+      setupProfileKey: null,
+      snapshotId: null,
+      persistentWorkspaceName: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       completedAt: null,
