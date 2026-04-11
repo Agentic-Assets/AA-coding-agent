@@ -17,14 +17,14 @@ MCP (Model Context Protocol) is a standard that lets AI assistants like Claude, 
 ### Step 1: Generate an API Token
 
 1. Sign in to the AA Coding Agent web app
-2. Go to **Settings** → **API Tokens**
-3. Click **"Generate Token"**
+2. Open the signed-in user menu
+3. Choose **API Keys** and generate a token there
 4. Copy the token (shown only once!) and save it somewhere safe
 
 ### Step 2: Connect Your GitHub Account
 
-1. In the web app, go to **Settings** → **Accounts**
-2. Click **"Connect GitHub"** and authorize the app
+1. In the web app, use the header or signed-in user menu to connect GitHub
+2. Authorize the app
 3. You're ready! The token will automatically use your GitHub access
 
 ### Step 3: Configure Your Tool
@@ -175,7 +175,7 @@ For complete parameter details and available models, see [MCP_SERVER.md](./MCP_S
 ## Troubleshooting
 
 **"GitHub not connected" error**
-→ Go to the web app Settings → Accounts → Connect GitHub, then generate a fresh token
+→ Connect GitHub from the signed-in web UI, then generate a fresh token from the API Keys dialog
 
 **"Authentication required" error**
 → Check your token is correct and hasn't expired. Generate a new one if needed.

@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -67,8 +69,8 @@ pnpm install
 # Development (DO NOT RUN - see AGENTS.md)
 # pnpm dev
 
-# Build for production (cloud-first, deploy via Vercel)
-git add . && git commit -m "msg" && git push origin <branch>
+# Production verification
+pnpm build
 
 # Database operations
 pnpm db:generate    # Generate migrations from schema changes
@@ -96,10 +98,10 @@ All errors must be resolved before considering work complete.
 ### CRITICAL: Never Run Dev Servers
 **DO NOT run `pnpm dev`, `next dev`, or any long-running development servers.** They block the terminal and conflict with existing instances. Use `pnpm build` to verify builds or let the user start servers themselves. See AGENTS.md for full rationale.
 
-### Cloud-First Deployment
-Never build locally - push changes to trigger Vercel deployment:
+### Deployment Workflow
+Use local validation before pushing, then let Vercel handle deployment:
 ```bash
-vercel env pull && vercel link  # Initial setup
+pnpm build
 git add . && git commit -m "msg" && git push origin <branch>
 vercel inspect <deployment-url> --wait  # Monitor deployment
 ```
@@ -307,7 +309,7 @@ MCP servers extend AI agents with additional tools. Support varies by agent:
 API tokens enable external applications and MCP clients to call the API without OAuth session cookies.
 
 **How it works:**
-- Tokens are generated via UI at `/settings` or `POST /api/tokens`
+- Tokens are generated from the signed-in user menu via the API Keys dialog, or via `POST /api/tokens`
 - Authenticate requests with `Authorization: Bearer <token>` header (or query param `?apikey=` for MCP)
 - Tokens carry `userId` context through to all service functions
 - GitHub access and API keys are looked up via `userId` from the token (same as session auth)
@@ -526,7 +528,7 @@ Uses Vercel AI SDK 5 + AI Gateway in `lib/utils/branch-name-generator.ts`:
 ## Additional Resources
 
 - **AGENTS.md** - Complete security guidelines, logging rules, repo page architecture
-- **AI_MODELS_AND_KEYS.md** - Comprehensive API key and model documentation
+- **AI_MODELS_AND_KEYS.md** - Canonical API key and model documentation
 - **README.md** - Full setup instructions, OAuth configuration, deployment guide
 - **Vercel Sandbox Docs** - https://vercel.com/docs/vercel-sandbox
 - **Vercel AI SDK 5** - https://sdk.vercel.ai/docs

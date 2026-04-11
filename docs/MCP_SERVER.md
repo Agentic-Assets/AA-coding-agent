@@ -41,8 +41,8 @@ The MCP server provides programmatic access to the AA Coding Agent platform via 
 **GitHub Connection Required**: To use the MCP server for repository operations, you must first connect your GitHub account via the web UI:
 
 1. Sign in to the AA Coding Agent web application
-2. Navigate to **Settings** (`/settings`)
-3. Go to **Accounts** and connect your GitHub account
+2. Use the signed-in header or user menu to connect your GitHub account
+3. Confirm the account is connected before creating API tokens or MCP tasks
 4. Authorize the application to access your repositories
 
 Your API token will automatically inherit your GitHub OAuth credentials, enabling full repository access via MCP.
@@ -50,8 +50,8 @@ Your API token will automatically inherit your GitHub OAuth credentials, enablin
 ### Step 1: Generate an API Token
 
 1. Sign in to the AA Coding Agent web application
-2. Navigate to **Settings** (`/settings`)
-3. Click **"Generate API Token"**
+2. Open the signed-in user menu
+3. Click **API Keys** and generate an API token
 4. Copy the token immediately (it's shown only once)
 5. Optionally set an expiration date for the token
 
@@ -484,7 +484,7 @@ All errors return an MCP response with `isError: true`:
   "content": [
     {
       "type": "text",
-      "text": "{\"error\":\"GitHub not connected\",\"message\":\"GitHub access is required for repository operations.\",\"hint\":\"Visit /settings in the web UI to connect your GitHub account.\"}"
+      "text": "{\"error\":\"GitHub not connected\",\"message\":\"GitHub access is required for repository operations.\",\"hint\":\"Use the signed-in web UI to connect your GitHub account.\"}"
     }
   ],
   "isError": true
@@ -749,7 +749,7 @@ curl -X POST "https://your-domain.com/api/mcp?apikey=YOUR_TOKEN" \
 **Solutions**:
 1. **GitHub Not Connected** - If you receive a "GitHub not connected" error:
    - Sign in to the web application
-   - Go to **Settings > Accounts**
+   - Use the signed-in header or user menu to connect GitHub
    - Click "Connect GitHub" and authorize the application
    - Generate a new API token after connecting
    - Retry the MCP request
@@ -827,7 +827,7 @@ const githubToken = await getUserGitHubToken(userId)
 if (!githubToken) {
   return errorResponse('GitHub not connected', {
     message: 'GitHub access is required for repository operations',
-    hint: 'Visit /settings in the web UI to connect your GitHub account'
+    hint: 'Use the signed-in web UI to connect your GitHub account'
   })
 }
 ```

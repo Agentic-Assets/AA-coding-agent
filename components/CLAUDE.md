@@ -1,7 +1,7 @@
 # components/
 
 ## Domain Purpose
-- Client-side React components with shadcn/ui primitives, Jotai state, and responsive layouts (all use `'use client'`)
+- React components with shadcn/ui primitives, Jotai state, and responsive layouts; most are client components, but some wrappers are server-rendered
 
 ## Local Patterns
 - **Naming**: kebab-case.tsx files (task-form.tsx, api-keys-dialog.tsx, app-layout.tsx)

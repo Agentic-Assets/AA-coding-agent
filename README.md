@@ -152,13 +152,13 @@ Access the platform programmatically from external applications using API tokens
 The platform exposes an MCP server that integrates with AI assistants like Claude Desktop, Cursor, and Windsurf. This provides a standardized way to create and manage coding tasks through natural language, with full GitHub repository access for executing tasks.
 
 **Prerequisites:**
-- You must connect your GitHub account in the web UI first (go to `/settings` and connect GitHub)
-- Create an API token from Settings (`/settings`)
+- You must connect your GitHub account in the web UI first using the signed-in header/menu controls
+- Create an API token from the signed-in user menu in the API Keys dialog
 
 **Quick Setup for Claude Desktop:**
 
-1. Sign in to the web app and connect your GitHub account (`/settings` → Accounts → Connect GitHub)
-2. Generate an API token from Settings (`/settings` → Tokens → Generate API Token)
+1. Sign in to the web app and connect your GitHub account from the header or user menu
+2. Open the user menu, choose `API Keys`, and generate an API token there
 3. Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
@@ -196,8 +196,8 @@ Create tasks programmatically using standard HTTP requests.
 #### Generate a Token
 
 1. Sign in to the application
-2. Go to Settings (`/settings`)
-3. Click "Generate API Token"
+2. Open the signed-in user menu
+3. Click `API Keys`, then generate an API token
 4. Copy the token (shown only once)
 
 #### Create Tasks via API
@@ -379,7 +379,7 @@ These API keys can be set globally (fallback for all users) or left unset to req
 **System Features**:
 - `AI_GATEWAY_API_KEY`: Also used for AI-generated branch names (non-blocking feature)
 
-> **Note**: Users can provide their own API keys in their profile settings (`/settings` → API Keys), which take precedence over global environment variables. This allows each user to use their own API keys without needing admin configuration.
+> **Note**: Users can provide their own API keys in the signed-in `API Keys` dialog. These keys take precedence over global environment variables, letting each user bring their own provider credentials.
 
 **API Key Priority Logic**:
 1. Check user-provided key in their profile (with graceful fallback if decryption fails)
