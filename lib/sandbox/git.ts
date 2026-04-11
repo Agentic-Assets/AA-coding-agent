@@ -66,7 +66,7 @@ export async function pushChangesToBranch(
       return { success: true, pushFailed: true }
     }
   } catch (error: unknown) {
-    await logger.info('Error pushing changes')
+    await logger.error('Error pushing changes')
     return { success: false }
   }
 }
