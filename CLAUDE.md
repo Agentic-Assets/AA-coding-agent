@@ -1,330 +1,107 @@
-@AGENTS.md
-
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Canonical agent guide for this repo. Root **`AGENTS.md`** is a one-line `@CLAUDE.md` pointer so tools that only read `AGENTS.md` still land here.
 
-## Project Overview
+**Next.js (read before coding):** Open the matching topic under `./.next-docs` (full index at the end of this file). If absent, run `npx @next/codemod agents-md --output CLAUDE.md`. You may also use `node_modules/next/dist/docs/` when present. Training data is not authoritative.
 
-This is a multi-agent AI coding assistant platform built with Next.js 16 and React 19. It enables users to execute automated coding tasks through various AI agents (Claude, Codex, Copilot, Cursor, Gemini, OpenCode) running in isolated Vercel sandboxes. The app supports multi-user authentication, task management, MCP server integration, and GitHub repository access.
+## Project overview
 
-## Core Architecture
+Multi-agent AI coding assistant: Next.js 16, React 19, Drizzle/Supabase, Vercel Sandboxes, OAuth (GitHub/Vercel), tasks, MCP connectors, GitHub integration. Agents: Claude, Codex, Copilot, Cursor, Gemini, OpenCode.
 
-### Technology Stack
-- **Frontend**: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, shadcn/ui, Streamdown (markdown rendering)
-- **Backend**: Next.js API routes, Drizzle ORM, PostgreSQL (Supabase)
-- **AI**: Vercel AI SDK 5, multiple AI agent CLIs (Claude Code, Codex, Copilot, Cursor, Gemini, OpenCode)
-- **Execution**: Vercel Sandbox v0.0.21 (isolated container environments, default 300-min timeout)
-- **Auth**: OAuth (GitHub, Vercel), encrypted session tokens (JWE)
-- **Database**: PostgreSQL (Supabase) with Drizzle ORM
-- **MCP**: Model Context Protocol (MCP Handler 1.25.2) for agent tool integration
+## Core architecture
 
-### Key Directories
-- `app/` - Next.js App Router pages and API routes
-- `lib/` - Core business logic, utilities, and services
-- `lib/sandbox/` - Sandbox creation, agent execution, Git operations
-- `lib/sandbox/agents/` - AI agent implementations (claude.ts, codex.ts, etc.)
-- `lib/db/` - Database schema and migrations
-- `lib/auth/` - Authentication and session management
-- `components/` - React UI components
-- `scripts/` - Database migration and utility scripts
+- **Stack**: App Router, Tailwind v4, shadcn/ui, Streamdown; API routes; Vercel AI SDK 5; Sandbox v0.0.21 (~300 min default); JWE sessions; MCP (mcp-handler).
+- **Dirs**: `app/`, `lib/`, `lib/sandbox/`, `lib/sandbox/agents/`, `lib/db/`, `lib/auth/`, `components/`, `scripts/`.
+- **Schema (`lib/db/schema.ts`)**: users, accounts, keys, apiTokens, tasks (`logs`, `branchName`, `sourceBranch`, `subAgentActivity`, `currentSubAgent`, `lastHeartbeat`), taskMessages, connectors, settings.
 
-### Database Schema (lib/db/schema.ts)
-- **users** - User profiles and primary OAuth accounts
-- **accounts** - Additional linked accounts (e.g., Vercel users connecting GitHub)
-- **keys** - User-specific API keys (Anthropic, OpenAI, Cursor, Gemini, AI Gateway)
-- **apiTokens** - External API tokens for programmatic access (hashed storage)
-- **tasks** - Coding tasks with logs, status, PR info, sandbox IDs
-  - `logs` - JSONB array of LogEntry with agent source tracking
-  - `branchName` - AI-generated branch name (format: {type}/{description}-{hash})
-  - `sourceBranch` - Source branch to clone from (optional, defaults to repo's default branch)
-  - `subAgentActivity` - JSONB array of SubAgentActivity (sub-agent execution history)
-  - `currentSubAgent` - Currently active sub-agent name (for UI display)
-  - `lastHeartbeat` - Last activity timestamp (for timeout extension)
-- **taskMessages** - Chat messages between users and agents
-- **connectors** - MCP server configurations
-- **settings** - User-specific settings (key-value pairs)
+## Development workflow
 
-## Development Workflow
-
-### Initial Project Setup
-**First-time setup requires environment variable workaround for drizzle-kit:**
+**Setup (drizzle-kit needs `.env`):**
 ```bash
-# 1. Install dependencies
 pnpm install
-
-# 2. Ensure .env.local exists with all required environment variables
-
-# 3. Apply database migrations (drizzle-kit doesn't auto-load .env.local)
 cp .env.local .env
 DOTENV_CONFIG_PATH=.env pnpm tsx -r dotenv/config node_modules/drizzle-kit/bin.cjs migrate
-rm .env  # Clean up temporary file
+rm .env
 ```
 
-### Common Commands
-```bash
-# Install dependencies
-pnpm install
+**Commands:** `pnpm build` to verify (do **not** run `pnpm dev` / `next dev` / long-lived servers—they block the session and fight for ports). `pnpm db:generate` | `db:push` | `db:studio`. Quality: `pnpm format`, `pnpm format:check`, `pnpm type-check`, `pnpm lint`—run after TS/TSX edits and fix all issues.
 
-# Development (DO NOT RUN - see AGENTS.md)
-# pnpm dev
+**Deploy:** `pnpm build` → commit/push → Vercel; optional `vercel inspect <url> --wait`.
 
-# Production verification
-pnpm build
+`POSTGRES_URL` in `.env.local` for local DB; see README for full env setup.
 
-# Database operations
-pnpm db:generate    # Generate migrations from schema changes
-pnpm db:push        # Push schema changes to database (recommended)
-pnpm db:studio      # Open Drizzle Studio
+## Security & logging (critical)
 
-# Code quality
-pnpm format         # Format code with Prettier
-pnpm format:check   # Check formatting
-pnpm type-check     # TypeScript type checking
-pnpm lint           # ESLint linting
-```
+**User-visible logs (`logger.*`, UI-facing `console.*`): static strings only—no template literals with `${...}`.** Applies to every level (info, error, success, command).
 
-**Note**: For local development with `pnpm db:push`, ensure `POSTGRES_URL` is set in `.env.local`. If using drizzle-kit migrations on Vercel or requiring the older `db:migrate` approach, see the Database Setup section below.
+**Never log (even “sanitized”):** user IDs/emails, paths, repo URLs, **branch names**, commit SHAs/messages, raw `Error` text to TaskLogger, Bearer tokens / `/api/tokens` secrets, `SANDBOX_VERCEL_*`, provider keys, `JWE_SECRET`, `ENCRYPTION_KEY`, GitHub token prefixes (`ghp_`, etc.).
 
-### CRITICAL: Code Quality Requirements
-**ALWAYS run these commands after editing TypeScript/TSX files:**
-```bash
-pnpm format
-pnpm type-check
-pnpm lint
-```
-All errors must be resolved before considering work complete.
+**`redactSensitiveInfo()`** (`lib/utils/logging.ts`): best-effort redaction (keys, gh tokens, Vercel trio, Bearer, JSON `teamId`/`projectId`, env-like `*KEY*`, `*SECRET*`, etc.)—**backup only**; do not log dynamics and rely on redaction.
 
-### CRITICAL: Never Run Dev Servers
-**DO NOT run `pnpm dev`, `next dev`, or any long-running development servers.** They block the terminal and conflict with existing instances. Use `pnpm build` to verify builds or let the user start servers themselves. See AGENTS.md for full rationale.
+**Pattern:** TaskLogger/user messages = generic static line; server-only `console.error` for engineering debug is ok if it does not print secrets.
 
-### Deployment Workflow
-Use local validation before pushing, then let Vercel handle deployment:
-```bash
-pnpm build
-git add . && git commit -m "msg" && git push origin <branch>
-vercel inspect <deployment-url> --wait  # Monitor deployment
-```
+**After editing logging:** search your changes for template literals in `logger`/`console` calls.
 
-## Security & Logging (CRITICAL)
+## Task creation (API & MCP)
 
-### No Dynamic Values in Logs
-**ALL log statements MUST use static strings only. NEVER include dynamic values.**
+Fields: `prompt`, `repoUrl`, `selectedAgent` (default `claude`), `selectedModel`, `sourceBranch` (optional), `installDependencies` (default false), `maxDuration` (minutes, default 300), `keepAlive` (default false).
 
-Bad (DO NOT DO):
+**Branches:** `GET /api/github/branches?owner=&repo=` returns `{ branches[], defaultBranch }`. Clone uses `--branch` when set; missing branch → repo default. **Do not log branch names** in user-facing logs.
+
+## AI agent system
+
+**Implementations** (`lib/sandbox/agents/*.ts`): `runAgent()`, TaskLogger, sandbox commands, git push, model + keys (user DB keys override env).
+
+### Claude: Anthropic vs AI Gateway
+- **Claude models** (`claude-sonnet-4-5-20250929`, `claude-opus-4-5-20251101`, …): `ANTHROPIC_API_KEY`; config `~/.config/claude/config.json`.
+- **Gateway models** (e.g. Gemini / OpenAI / Z.ai via gateway): prefer `AI_GATEWAY_API_KEY`. In sandbox set `ANTHROPIC_BASE_URL=https://ai-gateway.vercel.sh`, `ANTHROPIC_AUTH_TOKEN=<gateway key>`, `ANTHROPIC_API_KEY=""` so the SDK hits the gateway.
+- Code priority (`claude.ts`): gateway key first, then Anthropic; error if neither. UI (`components/task-form.tsx`):
+
 ```typescript
-await logger.info(`Task created: ${taskId}`)
-await logger.error(`Failed: ${error.message}`)
+const getClaudeRequiredKeys = (model: string): Provider[] =>
+  model.startsWith('claude-') ? ['anthropic'] : ['aigateway']
 ```
 
-Good (DO THIS):
-```typescript
-await logger.info('Task created')
-await logger.error('Operation failed')
-```
+### Task pipeline (`lib/tasks/process-task.ts` → `processTaskWithTimeout`)
+Validate → sandbox → clone (`sourceBranch` or default) → env (keys, npm, MCP) → agent → feature branch / commit / push → shutdown unless `keepAlive`. Same path for REST and MCP.
 
-**Rationale**: Logs are displayed directly in the UI and can expose sensitive data (user IDs, tokens, file paths, credentials). This applies to all log levels (info, error, success, command) and all logging methods (logger, console.log, console.error).
+### Sub-agents & timeout
+`TaskLogger`: `startSubAgent`, `subAgentRunning`, `completeSubAgent`, `heartbeat`. State in `tasks.subAgentActivity` (see `subAgentActivitySchema`). Logs update `lastHeartbeat`; active sub-agents + recent heartbeat can extend deadline (base + grace, polled ~30s). UI: `SubAgentIndicator`.
 
-### Sensitive Data That Must NEVER Appear in Logs
-- Vercel credentials (SANDBOX_VERCEL_TOKEN, SANDBOX_VERCEL_TEAM_ID, SANDBOX_VERCEL_PROJECT_ID)
-- API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)
-- User IDs, emails, personal information
-- File paths, repository URLs, branch names
-- GitHub tokens (ghp_, gho_, ghu_, ghs_, ghr_)
-- Any dynamic values revealing system internals
+### MCP in sandbox
+- **Claude**: `.mcp.json` — local CLI + remote HTTP, encrypted env/OAuth; works with Anthropic or gateway auth.
+- **Codex**: `~/.codex/config.toml` — stdio, experimental remote, bearer.
+- **Copilot**: `.copilot/mcp-config.json` — stdio + HTTP, optional `tools` list.
+- **Cursor, Gemini, OpenCode**: no MCP.
 
-See `AGENTS.md` for complete security guidelines and redaction patterns.
+### Agent matrix (keys, streaming, resume, install)
 
-## AI Agent System
+| Agent | Auth / keys | Default model | Streams | Resume | Install |
+|-------|-------------|----------------|---------|--------|---------|
+| Claude | AI_GATEWAY → ANTHROPIC | `claude-sonnet-4-5-20250929` | Yes (NDJSON → taskMessages) | `--resume "<uuid>"` or `--continue` | Claude Code (preinstalled in typical env) |
+| Codex | `AI_GATEWAY_API_KEY` (`sk-` or `vck_`) | `openai/gpt-4o` | No (batch) | `--last` only | `npm i -g @openai/codex` |
+| Copilot | `GH_TOKEN` / `GITHUB_TOKEN` | optional | Yes (text) | `--resume` (unreliable) | `npm i -g @github/copilot` |
+| Cursor | `CURSOR_API_KEY` | — | Yes | session id | Official curl installer → `~/.local/bin/cursor-agent` |
+| Gemini | `GEMINI_API_KEY` | n/a (param ignored) | No | none | `npm i -g @google/gemini-cli` |
+| OpenCode | `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` | none | No | none | npm global (implied) |
 
-### Agent Implementations (lib/sandbox/agents/)
-Each agent file (claude.ts, codex.ts, copilot.ts, cursor.ts, gemini.ts, opencode.ts) implements:
-- `runAgent()` - Main execution function
-- Logging with TaskLogger
-- Sandbox command execution
-- Git operations (commit, push)
-- Model selection logic
-- API key handling (user keys override env vars)
+## Delegating to specialized subagents (Claude Code)
 
-### Claude Agent - AI Gateway Support
-The Claude agent supports two authentication methods with automatic detection:
+Prefer `.claude/agents/` specialists for focused work: **api-route-architect**, **database-schema-optimizer**, **sandbox-agent-manager**, **security-logging-enforcer**, **security-expert**, **senior-code-reviewer**, **react-component-builder**, **react-expert**, **shadcn-ui-expert**, **tailwind-expert**, **ui-engineer**, **supabase-expert**, **docs-maintainer**, **agent-expert**, **research-search-expert**. Use built-in/plugin agents when they fit.
 
-**Direct Anthropic API** (for Anthropic models):
-- Uses `ANTHROPIC_API_KEY`
-- Supports Claude models: `claude-sonnet-4-5-20250929`, `claude-opus-4-5-20251101`, etc.
-- Configuration file: `~/.config/claude/config.json`
+## API architecture
 
-**AI Gateway** (for alternative models):
-- Uses `AI_GATEWAY_API_KEY` (automatic priority if both keys present)
-- Supports alternative models:
-  - **Google**: `gemini-3-pro-preview`, `gemini-3-flash-preview`
-  - **OpenAI**: `gpt-5.2`, `gpt-5.2-codex`, `gpt-5.1-codex-mini`
-  - **Z.ai/Zhipu**: `glm-4.7`
-- Environment setup (all three variables required for AI Gateway):
-  ```bash
-  ANTHROPIC_BASE_URL="https://ai-gateway.vercel.sh"
-  ANTHROPIC_AUTH_TOKEN=<AI_GATEWAY_API_KEY>
-  ANTHROPIC_API_KEY=""  # Must be empty when using AI Gateway
-  ```
-- Configuration notes:
-  - `ANTHROPIC_BASE_URL` redirects Anthropic SDK calls to AI Gateway endpoint
-  - `ANTHROPIC_AUTH_TOKEN` carries the actual AI Gateway API key to the gateway service
-  - Set `ANTHROPIC_API_KEY` to empty string to prevent fallback to direct Anthropic API
-  - Users can store BOTH Anthropic API key AND AI Gateway key simultaneously in database (different provider keys)
-- Works with MCP servers (no configuration changes needed)
+**Auth:** OAuth → `users` + encrypted token → JWE cookie (`lib/session/create.ts`) → `getServerSession()` (`lib/session/get-server-session.ts`); extra identities in `accounts`.
 
-**API Key Priority Logic** (`lib/sandbox/agents/claude.ts`):
-1. Check if `AI_GATEWAY_API_KEY` is available (preferred)
-2. Fall back to `ANTHROPIC_API_KEY`
-3. Return error if neither is available
+**GitHub HTTP:** `GET /api/github/user`, `user-repos`, `repos`, `POST repos/create`, `verify-repo`, `orgs`, `branches` (query `owner`, `repo` → `{ branches[], defaultBranch }`). **Repo tabs API:** `app/api/repos/[owner]/[repo]/` → `commits`, `issues`, `pull-requests`.
 
-**Model Selection Logic** (`components/task-form.tsx`):
-```typescript
-const getClaudeRequiredKeys = (model: string): Provider[] => {
-  if (model.startsWith('claude-')) {
-    return ['anthropic']  // Anthropic models need ANTHROPIC_API_KEY
-  }
-  return ['aigateway']    // All other models need AI_GATEWAY_API_KEY
-}
-```
+**Other:** `app/api/auth/*`, `tasks/*`, `connectors/*`, `api-keys/*`, `sandboxes/*`, `tokens/*` (Bearer or `?apikey=` for MCP).
 
-### Task Execution Workflow
-Task execution is centralized in `lib/tasks/process-task.ts` with `processTaskWithTimeout()`:
-1. **Validate task** - Check if task was stopped, wait for AI-generated branch name
-2. **Create sandbox** - Provision Vercel sandbox (via `lib/sandbox/creation.ts`)
-3. **Clone repository** - Clone repo and checkout specified source branch (or repo's default)
-4. **Setup environment** - Configure API keys, NPM tokens, MCP servers
-5. **Execute agent** - Run selected AI agent CLI with githubToken and apiKeys
-6. **Git operations** - Create feature branch from source branch, commit changes, push to branch
-7. **Cleanup** - Shutdown sandbox unless keepAlive is enabled
+### API tokens (Bearer / `?apikey=`)
 
-Works for both REST API and MCP task creation with same execution path.
+Settings UI or `POST /api/tokens` → raw token once → SHA256 at rest. `GET/DELETE /api/tokens`. Same `userId` as session for GitHub + stored keys. Endpoints: `/api/tasks/*`, `/api/tokens/*`, `/api/mcp`. Max 20/user (rate limited).
 
-#### Sub-Agent Activity Tracking
-Tasks can spawn sub-agents with tracking via `TaskLogger`. See `@lib/db/schema.ts` `subAgentActivitySchema` for definitive schema.
-
-- **startSubAgent(name, description?)** - Create and track a new sub-agent (returns sub-agent ID)
-- **subAgentRunning(subAgentId)** - Mark sub-agent as actively running
-- **completeSubAgent(subAgentId, success)** - Mark sub-agent as completed or errored
-- **heartbeat()** - Send activity heartbeat for timeout extension
-
-Sub-agent activity is stored in task table as JSONB array with fields:
-- `id` - Unique sub-agent instance ID
-- `name` - Sub-agent name (max 100 chars, e.g., "Explore", "Plan", "general-purpose")
-- `status` - One of: 'starting', 'running', 'completed', 'error'
-- `startedAt` - ISO timestamp of start
-- `completedAt` - ISO timestamp of completion (optional)
-- `description` - Short description of sub-agent task (max 500 chars)
-
-The UI displays sub-agents via `SubAgentIndicator` component with collapsible details.
-
-#### Heartbeat-Based Timeout Extension
-Task timeout is extended based on sub-agent activity:
-- **Base timeout** - Configurable per task (default 300 minutes)
-- **Grace period** - 5 minutes of activity for active sub-agents
-- **Absolute maximum** - Base timeout + grace period
-- **Mechanism** - Each log operation updates `lastHeartbeat` timestamp
-- **Check frequency** - Every 30 seconds during execution
-- **Extension logic** - If sub-agents are running AND heartbeat is recent (< 5min), timeout is extended
-
-Warning logged at T-1min before timeout if sub-agents are inactive.
-
-### MCP Server Support (Claude, Codex, Copilot)
-MCP servers extend AI agents with additional tools. Support varies by agent:
-
-**Claude**: Full support via `.mcp.json` (JSON format)
-- `type: 'local'` - Local CLI command with args
-- `type: 'remote'` - Remote HTTP endpoint with headers
-- Encrypted environment variables and OAuth credentials
-- Works with both Anthropic API and AI Gateway authentication methods
-
-**Codex**: Support via `~/.codex/config.toml` (TOML format)
-- Stdio servers with command + args
-- Remote servers via experimental flag
-- Bearer token authentication
-
-**Copilot**: Support via `.copilot/mcp-config.json` (JSON format)
-- Stdio servers with command + args + env
-- HTTP servers with headers
-- Tool selection via "tools" array
-
-**Cursor, Gemini, OpenCode**: Not supported
-
-## Delegating to Specialized Subagents
-
-**When working on this codebase, proactively delegate tasks to specialized subagents to improve efficiency and code quality.** This project includes custom Claude Code subagents (located in `.claude/agents/`) that are expert in specific domains of this platform. Using subagents keeps the main conversation focused while allowing deep, specialized work to happen in isolated contexts with appropriate tool access and validation patterns.
-
-**Available Custom Subagents:**
-
-**Core Infrastructure & API:**
-- **api-route-architect** - Generate production-ready Next.js 16 API routes with session validation, rate limiting, Zod schemas, and static-string logging
-- **database-schema-optimizer** - Design tables, generate Drizzle migrations, create type-safe query helpers, validate relationships and encryption
-- **sandbox-agent-manager** - Unify agent implementations, standardize sandbox lifecycle, handle error recovery, manage session persistence
-
-**Security & Code Quality:**
-- **security-logging-enforcer** - Audit code for vulnerabilities, enforce static-string logging, validate encryption coverage, prevent data leakage
-- **security-expert** - Deep security analysis, threat modeling, cryptographic validation, and access control review
-- **senior-code-reviewer** - Architectural review, code quality standards enforcement, pattern validation, and refactoring guidance
-
-**Frontend & UI:**
-- **react-component-builder** - Create type-safe, accessible React 19 components with shadcn/ui, Zod validation, and WCAG 2.1 AA compliance
-- **react-expert** - React 19 patterns, hooks optimization, performance tuning, and component architecture design
-- **shadcn-ui-expert** - shadcn/ui component integration, theming, customization, and design consistency
-- **tailwind-expert** - Tailwind CSS styling, responsive design patterns, utility optimization, and design system implementation
-- **ui-engineer** - Complete UI/UX implementation, responsive layouts, accessibility compliance, and visual design execution
-
-**Backend & Data:**
-- **supabase-expert** - PostgreSQL schema design, Supabase integrations, RLS policies, and database optimization
-- **docs-maintainer** - Documentation accuracy, consistency across guides, broken link detection, and content organization
-
-**Development & Research:**
-- **agent-expert** - AI agent architecture, prompt engineering, model selection, and agentic workflow design
-- **research-search-expert** - Codebase exploration, pattern discovery, dependency analysis, and architectural research
-
-**When to Delegate:** Use subagents for focused, domain-specific work that benefits from specialized expertise and isolated context. For example: delegate API route creation to `api-route-architect`, database changes to `database-schema-optimizer`, security audits to `security-logging-enforcer` or `security-expert`, agent refactoring to `sandbox-agent-manager`, UI component development to `react-component-builder`, and documentation updates to `docs-maintainer`. Additionally, consider using other available subagents from Claude Code's built-in library or user-installed plugins when their capabilities match the task at hand.
-
-**How Subagents Help:** Subagents provide specialized system prompts, enforce domain-specific patterns, maintain isolated context for high-volume operations, and reduce main conversation clutter. They ensure consistency (all API routes follow the same pattern), enforce security requirements (static logging, encryption), and accelerate development (automated boilerplate, type-safe generation). After a subagent completes its work, it returns results to the main conversation where you can integrate findings, apply changes, or proceed with dependent tasks.
-
-## API Architecture
-
-### Authentication Flow
-1. User signs in via OAuth (GitHub or Vercel)
-2. Create/update user record in `users` table with encrypted access token
-3. Create encrypted session token (JWE) stored in HTTP-only cookie (via `lib/session/create.ts`)
-4. All API routes validate session via `getServerSession()` from `lib/session/get-server-session.ts`
-5. Users can connect additional accounts (e.g., Vercel users connect GitHub) stored in `accounts` table
-
-### Key API Routes
-- `app/api/auth/` - OAuth callbacks, sign-in/sign-out, GitHub connection (uses `lib/session/` for session creation)
-- `app/api/tasks/` - Task CRUD, execution, logs, follow-up messages
-- `app/api/github/` - Repository access, org/repo listing, PR operations
-- `app/api/github/branches/` - Fetch repository branches for branch selection
-- `app/api/repos/[owner]/[repo]/` - Commits, issues, pull requests
-- `app/api/connectors/` - MCP server management
-- `app/api/api-keys/` - User API key management
-- `app/api/sandboxes/` - Sandbox creation and management
-- `app/api/tokens/` - External API token management (Bearer token auth)
-
-### External API Token Authentication
-API tokens enable external applications and MCP clients to call the API without OAuth session cookies.
-
-**How it works:**
-- Tokens are generated from the signed-in user menu via the API Keys dialog, or via `POST /api/tokens`
-- Authenticate requests with `Authorization: Bearer <token>` header (or query param `?apikey=` for MCP)
-- Tokens carry `userId` context through to all service functions
-- GitHub access and API keys are looked up via `userId` from the token (same as session auth)
-- Tokens are SHA256 hashed before storage (never stored in plaintext)
-- Raw token is shown once at creation - cannot be retrieved later
-- Supports optional expiration dates
-- Max 20 tokens per user (rate limited)
-- Supported endpoints: All `/api/tasks/*`, `/api/tokens/*`, and `/api/mcp` routes
-
-**Token Management Endpoints:**
-- `POST /api/tokens` - Create token (returns raw token once)
-- `GET /api/tokens` - List user's tokens (prefix only, not full token)
-- `DELETE /api/tokens/[id]` - Revoke a token
-
-**Dual-Auth Helper** (`lib/auth/api-token.ts`):
+**Dual auth** (`lib/auth/api-token.ts`):
 ```typescript
 import { getAuthFromRequest } from '@/lib/auth/api-token'
 
@@ -346,28 +123,30 @@ pnpm dlx shadcn@latest add <component-name>
 ```
 Existing components in `components/ui/`. See https://ui.shadcn.com/ for available components.
 
-### Repository Page Structure
-Nested routing with shared layout and separate pages per tab:
+### Repository pages
+
+Layout + tabs: `components/repo-layout.tsx`; tab bodies `repo-commits.tsx`, `repo-issues.tsx`, `repo-pull-requests.tsx`. Routes:
+
 ```
-app/repos/[owner]/[repo]/
-├── layout.tsx           # Shared layout with tab navigation
-├── page.tsx            # Redirects to /commits
-├── commits/page.tsx
-├── issues/page.tsx
-└── pull-requests/page.tsx
+app/repos/[owner]/[repo]/layout.tsx, page.tsx → commits
+commits/page.tsx, issues/page.tsx, pull-requests/page.tsx
 ```
 
-Adding new tabs:
+**Add a tab:**
 1. Create `app/repos/[owner]/[repo]/[tab-name]/page.tsx`
 2. Create component in `components/repo-[tab-name].tsx`
 3. Add API route in `app/api/repos/[owner]/[repo]/[tab-name]/route.ts`
 4. Update `tabs` array in `components/repo-layout.tsx`
 
-## Environment Variables
+## Environment variables
 
-**All environment variables must be stored in `.env.local` (not `.env`)** for local development. Next.js automatically loads `.env.local`, but drizzle-kit requires a workaround (see Database operations above).
+Store secrets in **`.env.local`** (not committed `.env`). Drizzle migrate workaround: copy to `.env` temporarily (see Development workflow).
 
-### Required (App Infrastructure)
+**Never log or send to the client:** `SANDBOX_VERCEL_*`, provider keys (`ANTHROPIC_*`, `AI_GATEWAY_*`, `OPENAI_*`, `GEMINI_*`, `CURSOR_*`), `GH_TOKEN`/`GITHUB_TOKEN`, `JWE_SECRET`, `ENCRYPTION_KEY`, user-stored keys, raw API tokens.
+
+**Safe to expose via `NEXT_PUBLIC_*`:** e.g. `NEXT_PUBLIC_AUTH_PROVIDERS`, `NEXT_PUBLIC_GITHUB_CLIENT_ID`, `NEXT_PUBLIC_VERCEL_CLIENT_ID` (OAuth client ids only).
+
+### Required (app infrastructure)
 - `POSTGRES_URL` - Supabase PostgreSQL connection string (from Supabase project settings)
 - `SANDBOX_VERCEL_TOKEN` - Vercel API token for sandbox creation
 - `SANDBOX_VERCEL_TEAM_ID` - Vercel team ID
@@ -401,28 +180,23 @@ const tasks = await db.query.tasks.findMany({
 })
 ```
 
-### Encryption for Sensitive Data
-All tokens, API keys, and OAuth credentials are encrypted at rest using `lib/crypto.ts`:
+### Encryption & decryption
+`lib/crypto.ts`: `encrypt(plaintext)` for storage; **`decrypt` returns `string | null`**—**never throw**; fall back (e.g. env) or skip on null.
+
+**Sessions (`lib/jwe/decrypt.ts`):** **`decryptJWE<T>()` returns `T | undefined`** if invalid/expired—treat as logged out; do not throw.
+
+### User-stored API keys (priority: user → env, never mix)
 ```typescript
-import { encrypt, decrypt } from '@/lib/crypto'
+import { decrypt } from '@/lib/crypto'
+import { getUserApiKey } from '@/lib/api-keys/user-keys'
 
-// Storing
-const encryptedToken = encrypt(token)
-await db.insert(users).values({ accessToken: encryptedToken })
-
-// Retrieving (decrypt returns null on failure - ENCRYPTION_KEY missing or invalid data)
-const decryptedToken = decrypt(user.accessToken)
-if (decryptedToken === null) {
-  // Handle gracefully - fall back to env vars, skip key, or return null
-  return null
-}
+const decrypted = decrypt(userKey.value)
+if (decrypted === null) return systemKey
+return decrypted
 ```
+Log only static messages (e.g. `'Error fetching user API key'`)—never values or `Error` text to TaskLogger.
 
-### API Key Priority (User > Global)
-Check user-provided keys first, fall back to environment variables:
-```typescript
-const anthropicKey = await getUserApiKey(userId, 'anthropic') || process.env.ANTHROPIC_API_KEY
-```
+**Shortcut:** `const k = await getUserApiKey(userId, 'anthropic') || process.env.ANTHROPIC_API_KEY`
 
 ### API Token Authentication Support
 Functions now accept optional `userId` parameter for external API token authentication (bypasses session lookup):
@@ -506,29 +280,20 @@ Uses Vercel AI SDK 5 + AI Gateway in `lib/utils/branch-name-generator.ts`:
 4. Filter queries by `userId`
 5. Use static log messages (no dynamic values)
 
-## Testing & Verification
+## Testing & verification
 
-### Pre-Deployment Checklist
-- [ ] Run `pnpm format` - Code is properly formatted
-- [ ] Run `pnpm type-check` - No TypeScript errors
-- [ ] Run `pnpm lint` - No linting errors
-- [ ] All log statements use static strings (no dynamic values)
-- [ ] No sensitive data in logs or error messages
-- [ ] User-scoped data access (filter by userId)
-- [ ] Encryption used for tokens/API keys
-- [ ] No long-running processes (dev servers, nodemon, etc.)
+Before merge/deploy: `pnpm format`, `pnpm format:check`, `pnpm type-check`, `pnpm lint`, `pnpm build`. Logs: static strings only; spot-check template literals in `logger`/`console` you changed; UI logs show no secrets. Queries scoped by `userId`; tokens/keys encrypted.
 
-### Breaking Changes in v2.0
+## Breaking changes (v2.0)
 - All tables now require `userId` foreign key
 - API routes require authentication
 - `GITHUB_TOKEN` no longer used as fallback (users provide their own)
 - Connector `env` changed from jsonb to encrypted text
 - See README.md "Changelog" section for full migration guide
 
-## Additional Resources
+## Additional resources
 
-- **AGENTS.md** - Complete security guidelines, logging rules, repo page architecture
-- **AI_MODELS_AND_KEYS.md** - Canonical API key and model documentation
+- **AI_MODELS_AND_KEYS.md** - API keys and models
 - **README.md** - Full setup instructions, OAuth configuration, deployment guide
 - **Vercel Sandbox Docs** - https://vercel.com/docs/vercel-sandbox
 - **Vercel AI SDK 5** - https://sdk.vercel.ai/docs
@@ -536,59 +301,13 @@ Uses Vercel AI SDK 5 + AI Gateway in `lib/utils/branch-name-generator.ts`:
 - **Drizzle ORM** - https://orm.drizzle.team/docs/overview
 - **shadcn/ui** - https://ui.shadcn.com/
 
-## MCP Server
+## MCP server (HTTP)
 
-The platform exposes its functionality via a Model Context Protocol (MCP) server, allowing external MCP clients (like Claude Desktop, Cursor, or Windsurf) to programmatically create and manage coding tasks.
+**`/api/mcp`** — Streamable HTTP (POST/GET/DELETE), no SSE. Auth: `Authorization: Bearer <token>` or `?apikey=` (HTTPS only; tokens hashed at rest). Same rate limits as web UI; tools user-scoped.
 
-### Overview
+**Tools:** `create-task` (runs full `processTaskWithTimeout`, needs GitHub linked, optional `sourceBranch`) → `taskId`, `status`, `createdAt`; `get-task`; `continue-task`; `list-tasks`; `stop-task`. Token auth supplies `userId` for GitHub + stored API keys like session auth.
 
-- **Endpoint**: `/api/mcp`
-- **Protocol**: MCP over HTTP (Streamable HTTP transport)
-- **Authentication**: API tokens via query parameter or Authorization header
-- **Transport**: HTTP POST/GET/DELETE (no SSE)
-
-### Authentication
-
-MCP clients authenticate using API tokens generated in the Settings page:
-
-**Query Parameter Method** (recommended for Claude Desktop):
-```
-https://your-domain.com/api/mcp?apikey=YOUR_API_TOKEN
-```
-
-**Authorization Header Method**:
-```
-Authorization: Bearer YOUR_API_TOKEN
-```
-
-### Available Tools
-
-1. **create-task** - Create and execute a new coding task
-   - Input: `prompt`, `repoUrl`, `sourceBranch` (optional), `selectedAgent`, `selectedModel`, `installDependencies`, `keepAlive`
-   - Returns: `taskId`, `status`, `createdAt`
-   - **Key behavior**: Verifies GitHub access, retrieves user API keys, and triggers full task execution automatically
-   - `sourceBranch` allows selecting a specific branch to clone from (defaults to repository's default branch)
-   - Requires GitHub account connected via web UI settings
-
-2. **get-task** - Retrieve task details
-   - Input: `taskId`
-   - Returns: Full task details including logs, status, PR info
-
-3. **continue-task** - Send follow-up message to a task
-   - Input: `taskId`, `message`
-   - Returns: Confirmation of message queued
-
-4. **list-tasks** - List user's tasks
-   - Input: `limit`, `status` (optional filter)
-   - Returns: Array of tasks with essential fields
-
-5. **stop-task** - Stop a running task
-   - Input: `taskId`
-   - Returns: Confirmation of task stopped
-
-### Client Configuration
-
-**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+**Claude Desktop example** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
@@ -599,59 +318,11 @@ Authorization: Bearer YOUR_API_TOKEN
 }
 ```
 
-See `docs/MCP_SERVER.md` for complete documentation including Cursor and Windsurf configuration.
+**Code:** `app/api/mcp/route.ts`, `lib/mcp/tools/`, `lib/mcp/schemas.ts`, `mcp-handler`; task execution `lib/tasks/process-task.ts`. Details: `docs/MCP_SERVER.md`.
 
-### External Access via API Tokens
+## Recent improvements (2026-01-26)
 
-MCP clients can now create and execute tasks with full GitHub integration using API tokens:
-
-- **GitHub context**: API token authentication passes `userId` through to all functions, enabling GitHub token retrieval and user info lookup
-- **Verified access**: `create-task` verifies GitHub connection before task creation - returns error if GitHub not connected
-- **Automatic execution**: Task execution is triggered immediately by `create-task` tool using `processTaskWithTimeout()` from `lib/tasks/process-task.ts`
-- **API key retrieval**: User's stored API keys are automatically retrieved and passed to the agent for all AI providers
-- **Full workflow**: MCP tasks follow the complete execution flow: sandbox creation → agent execution → Git commit/push → sandbox cleanup
-
-**Workflow**: User connects GitHub via web UI → generates API token → configures MCP client → `create-task` automatically handles GitHub access verification and full task execution
-
-### Security Notes
-
-- API tokens appear in URLs when using query parameter authentication - **always use HTTPS**
-- Tokens are hashed (SHA256) before storage and cannot be recovered
-- Rate limiting applies to MCP requests (same limits as web UI)
-- All tools enforce user-scoped access control
-- Rotate tokens regularly from Settings page
-- GitHub access is required for `create-task` - will return error if not connected
-
-### Implementation
-
-- Route handler: `app/api/mcp/route.ts`
-- Tool implementations: `lib/mcp/tools/` (create-task uses `lib/tasks/process-task.ts`)
-- Schemas: `lib/mcp/schemas.ts`
-- Uses `mcp-handler` package for MCP protocol support
-- Task processing: `lib/tasks/process-task.ts` - Shared logic for REST API and MCP execution
-
-## Recent Improvements (2026-01-26)
-
-### Security Hardening
-Fixed 8 critical logging violations across multiple agent and API files:
-- **@scripts/migrate-production.ts** - Removed dynamic env var and error logging
-- **@lib/vercel-client/user.ts** - Removed API response body logging to prevent data leakage
-- **@lib/sandbox/agents/claude.ts** - Removed error details and tool input logging
-- **@app/api/auth/github/callback/route.ts** - Removed tokenData logging
-- All modified files now use static-string logging only (no dynamic values or error details exposed to users)
-
-### Database Performance Optimization
-- Created migration `lib/db/migrations/0025_add_rate_limit_indexes.sql` with 4 strategic indexes:
-  - `idx_tasks_user_id_created_at` - Optimizes user task counting by date
-  - `idx_tasks_user_id_deleted_at` - Improves soft-delete filtering in rate limit checks
-  - `idx_task_messages_task_id` - Accelerates task-message joins
-  - `idx_task_messages_created_at` - Enables efficient date range filtering
-- Eliminates full table scans during rate limiting queries
-
-### Frontend Performance Optimization
-- **@next.config.ts** - Added `optimizePackageImports` for lucide-react and @radix-ui/react-icons (reduces barrel import overhead)
-- **@components/file-editor.tsx** - Switched to dynamic import of Monaco editor with suspense boundary (~2.5MB bundle reduction)
-- **@app/api/tasks/route.ts** - Converted sequential API calls to Promise.all() for parallel data fetching
+Static-only logging hardening (migrate-production, vercel-client user, claude agent, GitHub OAuth callback). DB: migration `0025_add_rate_limit_indexes.sql` for task/message rate-limit queries. Frontend: `optimizePackageImports` (lucide, radix icons), dynamic Monaco in `file-editor`, parallel fetches in `app/api/tasks/route.ts`.
 
 ## Important Reminders
 
@@ -663,3 +334,5 @@ Fixed 8 critical logging violations across multiple agent and API files:
 6. **Encrypt sensitive data** - Use lib/crypto.ts for tokens and API keys
 7. **Check for existing components** - Use shadcn CLI before creating new UI components
 8. **Claude API Gateway support** - Use AI_GATEWAY_API_KEY for alternative models, ANTHROPIC_API_KEY for Claude models
+
+<!-- NEXT-AGENTS-MD-START -->[Next.js Docs Index]|root: ./.next-docs|STOP. What you remember about Next.js is WRONG for this project. Always search docs and read before any task.|If docs missing, run this command first: npx @next/codemod agents-md --output CLAUDE.md|01-app:{04-glossary.mdx}|01-app/01-getting-started:{01-installation.mdx,02-project-structure.mdx,03-layouts-and-pages.mdx,04-linking-and-navigating.mdx,05-server-and-client-components.mdx,06-fetching-data.mdx,07-mutating-data.mdx,08-caching.mdx,09-revalidating.mdx,10-error-handling.mdx,11-css.mdx,12-images.mdx,13-fonts.mdx,14-metadata-and-og-images.mdx,15-route-handlers.mdx,16-proxy.mdx,17-deploying.mdx,18-upgrading.mdx}|01-app/02-guides:{ai-agents.mdx,analytics.mdx,authentication.mdx,backend-for-frontend.mdx,caching-without-cache-components.mdx,cdn-caching.mdx,ci-build-caching.mdx,content-security-policy.mdx,css-in-js.mdx,custom-server.mdx,data-security.mdx,debugging.mdx,deploying-to-platforms.mdx,draft-mode.mdx,environment-variables.mdx,forms.mdx,how-revalidation-works.mdx,incremental-static-regeneration.mdx,instant-navigation.mdx,instrumentation.mdx,internationalization.mdx,json-ld.mdx,lazy-loading.mdx,local-development.mdx,mcp.mdx,mdx.mdx,memory-usage.mdx,migrating-to-cache-components.mdx,multi-tenant.mdx,multi-zones.mdx,open-telemetry.mdx,package-bundling.mdx,ppr-platform-guide.mdx,prefetching.mdx,preserving-ui-state.mdx,production-checklist.mdx,progressive-web-apps.mdx,public-static-pages.mdx,redirecting.mdx,rendering-philosophy.mdx,sass.mdx,scripts.mdx,self-hosting.mdx,single-page-applications.mdx,static-exports.mdx,streaming.mdx,tailwind-v3-css.mdx,third-party-libraries.mdx,videos.mdx,view-transitions.mdx}|01-app/02-guides/migrating:{app-router-migration.mdx,from-create-react-app.mdx,from-vite.mdx}|01-app/02-guides/testing:{cypress.mdx,jest.mdx,playwright.mdx,vitest.mdx}|01-app/02-guides/upgrading:{codemods.mdx,version-14.mdx,version-15.mdx,version-16.mdx}|01-app/03-api-reference:{07-edge.mdx,08-turbopack.mdx}|01-app/03-api-reference/01-directives:{use-cache-private.mdx,use-cache-remote.mdx,use-cache.mdx,use-client.mdx,use-server.mdx}|01-app/03-api-reference/02-components:{font.mdx,form.mdx,image.mdx,link.mdx,script.mdx}|01-app/03-api-reference/03-file-conventions/01-metadata:{app-icons.mdx,manifest.mdx,opengraph-image.mdx,robots.mdx,sitemap.mdx}|01-app/03-api-reference/03-file-conventions/02-route-segment-config:{dynamicParams.mdx,instant.mdx,maxDuration.mdx,preferredRegion.mdx,runtime.mdx}|01-app/03-api-reference/03-file-conventions:{default.mdx,dynamic-routes.mdx,error.mdx,forbidden.mdx,instrumentation-client.mdx,instrumentation.mdx,intercepting-routes.mdx,layout.mdx,loading.mdx,mdx-components.mdx,not-found.mdx,page.mdx,parallel-routes.mdx,proxy.mdx,public-folder.mdx,route-groups.mdx,route.mdx,src-folder.mdx,template.mdx,unauthorized.mdx}|01-app/03-api-reference/04-functions:{after.mdx,cacheLife.mdx,cacheTag.mdx,catchError.mdx,connection.mdx,cookies.mdx,draft-mode.mdx,fetch.mdx,forbidden.mdx,generate-image-metadata.mdx,generate-metadata.mdx,generate-sitemaps.mdx,generate-static-params.mdx,generate-viewport.mdx,headers.mdx,image-response.mdx,next-request.mdx,next-response.mdx,not-found.mdx,permanentRedirect.mdx,redirect.mdx,refresh.mdx,revalidatePath.mdx,revalidateTag.mdx,unauthorized.mdx,unstable_cache.mdx,unstable_noStore.mdx,unstable_rethrow.mdx,updateTag.mdx,use-link-status.mdx,use-params.mdx,use-pathname.mdx,use-report-web-vitals.mdx,use-router.mdx,use-search-params.mdx,use-selected-layout-segment.mdx,use-selected-layout-segments.mdx,userAgent.mdx}|01-app/03-api-reference/05-config/01-next-config-js:{adapterPath.mdx,allowedDevOrigins.mdx,appDir.mdx,assetPrefix.mdx,authInterrupts.mdx,basePath.mdx,cacheComponents.mdx,cacheHandlers.mdx,cacheLife.mdx,compress.mdx,crossOrigin.mdx,cssChunking.mdx,deploymentId.mdx,devIndicators.mdx,distDir.mdx,env.mdx,expireTime.mdx,exportPathMap.mdx,generateBuildId.mdx,generateEtags.mdx,headers.mdx,htmlLimitedBots.mdx,httpAgentOptions.mdx,images.mdx,incrementalCacheHandlerPath.mdx,inlineCss.mdx,logging.mdx,mdxRs.mdx,onDemandEntries.mdx,optimizePackageImports.mdx,output.mdx,pageExtensions.mdx,poweredByHeader.mdx,productionBrowserSourceMaps.mdx,proxyClientMaxBodySize.mdx,reactCompiler.mdx,reactMaxHeadersLength.mdx,reactStrictMode.mdx,redirects.mdx,rewrites.mdx,sassOptions.mdx,serverActions.mdx,serverComponentsHmrCache.mdx,serverExternalPackages.mdx,staleTimes.mdx,staticGeneration.mdx,taint.mdx,trailingSlash.mdx,transpilePackages.mdx,turbopack.mdx,turbopackFileSystemCache.mdx,turbopackIgnoreIssue.mdx,typedRoutes.mdx,typescript.mdx,urlImports.mdx,useLightningcss.mdx,viewTransition.mdx,webVitalsAttribution.mdx,webpack.mdx}|01-app/03-api-reference/05-config:{02-typescript.mdx,03-eslint.mdx}|01-app/03-api-reference/06-cli:{create-next-app.mdx,next.mdx}|01-app/03-api-reference/07-adapters:{01-configuration.mdx,02-creating-an-adapter.mdx,03-api-reference.mdx,04-testing-adapters.mdx,05-routing-with-next-routing.mdx,06-implementing-ppr-in-an-adapter.mdx,07-runtime-integration.mdx,08-invoking-entrypoints.mdx,09-output-types.mdx,10-routing-information.mdx,11-use-cases.mdx}|02-pages/01-getting-started:{01-installation.mdx,02-project-structure.mdx,04-images.mdx,05-fonts.mdx,06-css.mdx,11-deploying.mdx}|02-pages/02-guides:{analytics.mdx,authentication.mdx,babel.mdx,ci-build-caching.mdx,content-security-policy.mdx,css-in-js.mdx,custom-server.mdx,debugging.mdx,draft-mode.mdx,environment-variables.mdx,forms.mdx,incremental-static-regeneration.mdx,instrumentation.mdx,internationalization.mdx,lazy-loading.mdx,mdx.mdx,multi-zones.mdx,open-telemetry.mdx,package-bundling.mdx,post-css.mdx,preview-mode.mdx,production-checklist.mdx,redirecting.mdx,sass.mdx,scripts.mdx,self-hosting.mdx,static-exports.mdx,tailwind-v3-css.mdx,third-party-libraries.mdx}|02-pages/02-guides/migrating:{app-router-migration.mdx,from-create-react-app.mdx,from-vite.mdx}|02-pages/02-guides/testing:{cypress.mdx,jest.mdx,playwright.mdx,vitest.mdx}|02-pages/02-guides/upgrading:{codemods.mdx,version-10.mdx,version-11.mdx,version-12.mdx,version-13.mdx,version-14.mdx,version-9.mdx}|02-pages/03-building-your-application/01-routing:{01-pages-and-layouts.mdx,02-dynamic-routes.mdx,03-linking-and-navigating.mdx,05-custom-app.mdx,06-custom-document.mdx,07-api-routes.mdx,08-custom-error.mdx}|02-pages/03-building-your-application/02-rendering:{01-server-side-rendering.mdx,02-static-site-generation.mdx,04-automatic-static-optimization.mdx,05-client-side-rendering.mdx}|02-pages/03-building-your-application/03-data-fetching:{01-get-static-props.mdx,02-get-static-paths.mdx,03-forms-and-mutations.mdx,03-get-server-side-props.mdx,05-client-side.mdx}|02-pages/03-building-your-application/06-configuring:{12-error-handling.mdx}|02-pages/04-api-reference:{06-edge.mdx,08-turbopack.mdx}|02-pages/04-api-reference/01-components:{font.mdx,form.mdx,head.mdx,image-legacy.mdx,image.mdx,link.mdx,script.mdx}|02-pages/04-api-reference/02-file-conventions:{instrumentation.mdx,proxy.mdx,public-folder.mdx,src-folder.mdx}|02-pages/04-api-reference/03-functions:{get-initial-props.mdx,get-server-side-props.mdx,get-static-paths.mdx,get-static-props.mdx,next-request.mdx,next-response.mdx,use-params.mdx,use-report-web-vitals.mdx,use-router.mdx,use-search-params.mdx,userAgent.mdx}|02-pages/04-api-reference/04-config/01-next-config-js:{adapterPath.mdx,allowedDevOrigins.mdx,assetPrefix.mdx,basePath.mdx,bundlePagesRouterDependencies.mdx,compress.mdx,crossOrigin.mdx,deploymentId.mdx,devIndicators.mdx,distDir.mdx,env.mdx,exportPathMap.mdx,generateBuildId.mdx,generateEtags.mdx,headers.mdx,httpAgentOptions.mdx,images.mdx,logging.mdx,onDemandEntries.mdx,optimizePackageImports.mdx,output.mdx,pageExtensions.mdx,poweredByHeader.mdx,productionBrowserSourceMaps.mdx,proxyClientMaxBodySize.mdx,reactStrictMode.mdx,redirects.mdx,rewrites.mdx,serverExternalPackages.mdx,trailingSlash.mdx,transpilePackages.mdx,turbopack.mdx,typescript.mdx,urlImports.mdx,useLightningcss.mdx,webVitalsAttribution.mdx,webpack.mdx}|02-pages/04-api-reference/04-config:{01-typescript.mdx,02-eslint.mdx}|02-pages/04-api-reference/05-cli:{create-next-app.mdx,next.mdx}|02-pages/04-api-reference/06-adapters:{01-configuration.mdx,02-creating-an-adapter.mdx,03-api-reference.mdx,04-testing-adapters.mdx,05-routing-with-next-routing.mdx,06-implementing-ppr-in-an-adapter.mdx,07-runtime-integration.mdx,08-invoking-entrypoints.mdx,09-output-types.mdx,10-routing-information.mdx,11-use-cases.mdx}|03-architecture:{accessibility.mdx,fast-refresh.mdx,nextjs-compiler.mdx,supported-browsers.mdx}|04-community:{01-contribution-guide.mdx,02-rspack.mdx}<!-- NEXT-AGENTS-MD-END -->
