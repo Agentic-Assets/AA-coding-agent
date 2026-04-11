@@ -87,7 +87,7 @@ async function runAndLogCommand(sandbox: Sandbox, command: string, args: string[
   const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
   const redactedCommand = redactSensitiveInfo(fullCommand)
 
-  await logger.command(redactedCommand)
+  await logger.command('Running command in sandbox')
 
   const result = await runInProject(sandbox, command, args)
 
