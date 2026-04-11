@@ -7,6 +7,7 @@ import { redactSensitiveInfo } from '@/lib/utils/logging'
 import { TaskLogger } from '@/lib/utils/task-logger'
 import { detectPackageManager, installDependencies } from './package-manager'
 import { registerSandbox } from './sandbox-registry'
+import { isNode24DefaultEnabled } from './feature-flags'
 
 // Helper function to run command and log it
 async function runAndLogCommand(sandbox: Sandbox, command: string, args: string[], logger: TaskLogger, cwd?: string) {
@@ -77,6 +78,10 @@ export async function createSandbox(config: SandboxConfig, logger: TaskLogger): 
     // Default to both 3000 (Next.js) and 5173 (Vite) for now
     const defaultPorts = config.ports || [3000, 5173]
 
+    // Determine runtime: use config.runtime if explicitly set, otherwise apply
+    // the node24 feature flag (opt-out; default ON to match SDK 1.9.3 default).
+    const resolvedRuntime = config.runtime || (isNode24DefaultEnabled() ? 'node24' : 'node22')
+
     // Create sandbox without source - we'll clone manually to /vercel/sandbox/project
     const sandboxConfig = {
       teamId: process.env.SANDBOX_VERCEL_TEAM_ID!,
@@ -84,7 +89,7 @@ export async function createSandbox(config: SandboxConfig, logger: TaskLogger): 
       token: process.env.SANDBOX_VERCEL_TOKEN!,
       timeout: timeoutMs,
       ports: defaultPorts,
-      runtime: config.runtime || 'node22',
+      runtime: resolvedRuntime,
       resources: { vcpus: config.resources?.vcpus || 4 },
     }
 
