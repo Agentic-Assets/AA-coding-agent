@@ -152,7 +152,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"try { & bash \\\"$env:CLAUDE_PROJECT_DIR/.claude/hooks/auto-inject-begin.sh\\\" } catch { } ; exit 0\""
+            "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/auto-inject-begin.sh\" 2>/dev/null || true'"
           }
         ]
       }
@@ -163,11 +163,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$in = [Console]::In.ReadToEnd(); if (Get-Command bash -ErrorAction SilentlyContinue) { try { $in | & bash \\\"$env:CLAUDE_PROJECT_DIR/.claude/hooks/enforce-pnpm.sh\\\"; $code = $LASTEXITCODE; if ($code -eq 2) { exit 2 } } catch { } } exit 0\""
+            "command": "bash -c '[ -x \"$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-pnpm.sh\" ] && \"$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-pnpm.sh\" || exit 0'"
           },
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$in = [Console]::In.ReadToEnd(); if (Get-Command bash -ErrorAction SilentlyContinue) { try { $in | & bash \\\"$env:CLAUDE_PROJECT_DIR/.claude/hooks/validate-bash-security.sh\\\"; $code = $LASTEXITCODE; if ($code -eq 2) { exit 2 } } catch { } } exit 0\""
+            "command": "bash -c '[ -x \"$CLAUDE_PROJECT_DIR/.claude/hooks/validate-bash-security.sh\" ] && \"$CLAUDE_PROJECT_DIR/.claude/hooks/validate-bash-security.sh\" || exit 0'"
           }
         ]
       }
@@ -178,11 +178,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"try { & bash \\\"$env:CLAUDE_PROJECT_DIR/.claude/hooks/auto-format.sh\\\" } catch { } ; exit 0\""
+            "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/auto-format.sh\" 2>/dev/null || true'"
           },
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"try { & bash \\\"$env:CLAUDE_PROJECT_DIR/.claude/hooks/type-check-file.sh\\\" } catch { } ; exit 0\""
+            "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/type-check-file.sh\" 2>/dev/null || true'"
           }
         ]
       }
@@ -192,7 +192,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"try { & bash \\\"$env:CLAUDE_PROJECT_DIR/.claude/hooks/pre-stop-doc-check.sh\\\" } catch { } ; exit 0\""
+            "command": "bash -c '\"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-stop-doc-check.sh\" 2>/dev/null || true'"
           }
         ]
       }
