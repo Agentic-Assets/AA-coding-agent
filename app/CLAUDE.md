@@ -12,10 +12,10 @@ Next.js 16 App Router: UI routing with root layout, providers, and nested page s
 - **Parallel data fetch**: Root layout and pages fetch session + GitHub stars concurrently
 - **Client delegation**: Server pages pass state to client components (TasksListClient, TaskPageClient, etc.)
 - **Dynamic metadata**: Pages export `metadata` or call `generateMetadata()` for SEO
-- **Promise-based params**: Use `await params` for route parameters (Next.js 15+)
+- **Promise-based params**: Use `await params` for route parameters in App Router pages
 
 ## Directory Structure
-- `api/` - REST endpoints (62 routes, see @app/api/CLAUDE.md)
+- `api/` - REST endpoints for auth, tasks, GitHub, connectors, MCP, sandboxes, and tokens
 - `tasks/` - Task UI (list page, detail page with [taskId])
 - `repos/` - Repository browser (commits, issues, pull-requests tabs)
 - `new/[owner]/[repo]/` - Repository-specific task creation page
@@ -35,7 +35,7 @@ Next.js 16 App Router: UI routing with root layout, providers, and nested page s
 - **Auth redirect**: Task pages redirect to home if not authenticated
 - **Public home**: Home page (/) accessible without auth, shows task form
 - **Repo-specific creation**: `/new/[owner]/[repo]/` pre-populates task form with repository (requires auth)
-- **Public repos**: Repo pages viewable without auth (GitHub rate limit: 60/hr unauth, 5000/hr auth)
+- **Repo browser auth**: repo pages render without a session, but successful data loading still depends on the underlying GitHub/API route auth state
 - **Nested layouts**: tasks/ and repos/ each have own layout.tsx for tab navigation
 - **Catch-all layout**: `[owner]/[repo]/layout.tsx` provides shared metadata for all owner/repo routes
 

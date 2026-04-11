@@ -1,6 +1,6 @@
 # app/docs
 
-Renders static markdown files from `docs/` directory as web pages using React Markdown with GFM support.
+Renders selected static markdown files from `docs/` as web pages using React Markdown with GFM support.
 
 ## Domain Purpose
 - Serve platform documentation via web UI (setup guides, API references)
@@ -8,7 +8,7 @@ Renders static markdown files from `docs/` directory as web pages using React Ma
 - Support GitHub Flavored Markdown (tables, strikethrough, task lists)
 
 ## Local Patterns
-- **File-based routing**: `app/docs/[slug]/page.tsx` reads corresponding `docs/[SLUG].md`
+- **Explicit page routing**: each published doc page is implemented explicitly (for example `app/docs/mcp-server/page.tsx`)
 - **Metadata template**: Export `metadata` object with title and description
 - **Prose styling**: Container `max-w-4xl`, article with Tailwind `prose` classes and `dark:prose-invert`
 
@@ -17,15 +17,10 @@ Renders static markdown files from `docs/` directory as web pages using React Ma
 - `rehypeRaw` - Allow raw HTML (sanitized by CSP)
 
 ## Adding New Pages
-1. Create `docs/NEW_FEATURE.md` with markdown content
-2. Create `app/docs/new-feature/page.tsx` with:
-   ```typescript
-   const metadata = { title, description }
-   const markdownPath = join(process.cwd(), 'docs', 'NEW_FEATURE.md')
-   const content = readFileSync(markdownPath, 'utf-8')
-   return <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-   ```
-3. Link from navigation
+1. Create the backing markdown file in `docs/`
+2. Add a dedicated page under `app/docs/<slug>/page.tsx`
+3. Read the markdown file with `readFileSync`, render with `ReactMarkdown`, and add metadata
+4. Link the page from the relevant navigation surface
 
 ## Integration Points
 - **Markdown files**: `docs/*.md` directory

@@ -1,18 +1,19 @@
 # Crypto Module
 
 ## Domain Purpose
-AES-256-CBC encryption/decryption for database secrets: OAuth tokens, API keys, MCP credentials.
+Application secret encryption/decryption for database-backed secrets: OAuth tokens, API keys, and MCP credentials.
 
 ## Module Boundaries
 - **Owns**: Symmetric encryption/decryption for app data
-- **Note**: Different from `lib/jwe/` (which uses A256GCM for session tokens)
+- **Note**: Different from `lib/jwe/` (which uses JWE for session tokens)
 
 ## Local Patterns
-- **Algorithm**: AES-256-CBC (Node.js crypto standard)
-- **IV**: Random 16 bytes per encryption (unique nonce per call)
-- **Format**: `${iv_hex}:${ciphertext_hex}` (parseable, debuggable)
+- **Primary algorithm**: AES-256-GCM for new encryptions
+- **Backward compatibility**: decrypt supports legacy AES-256-CBC payloads
+- **IV**: Random nonce per encryption; format varies by version
+- **Format**: Versioned, parseable encrypted payload string
 - **Key Format**: 32-byte hex string (NOT base64url like JWE_SECRET); 64 hex characters
-- **Encryption**: Random IV generated per call, preventing pattern detection
+- **Encryption**: Random IV generated per call, preventing pattern reuse
 
 ## Integration Points
 - `lib/db/schema.ts` - OAuth tokens (users.accessToken), API keys (keys.value)
@@ -21,5 +22,5 @@ AES-256-CBC encryption/decryption for database secrets: OAuth tokens, API keys, 
 - `app/api/connectors/` - MCP server env vars encrypted
 
 ## Key Functions
-- `encrypt(plaintext)` - Returns `iv_hex:ciphertext_hex` string
-- `decrypt(encrypted)` - Parses format, returns plaintext; throws on error
+- `encrypt(plaintext)` - Returns encrypted payload string for DB storage
+- `decrypt(encrypted)` - Returns plaintext or `null` on failure

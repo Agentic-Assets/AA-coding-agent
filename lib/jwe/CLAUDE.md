@@ -1,12 +1,12 @@
 # JWE Module
 
 ## Domain Purpose
-JSON Web Encryption (JWE) for session tokens: A256GCM asymmetric encryption, expiration validation, graceful error handling.
+JSON Web Encryption (JWE) for session tokens using direct symmetric encryption (`alg: dir`, `enc: A256GCM`), expiration validation, and graceful error handling.
 
 ## Module Boundaries
 - **Owns**: JWE encryption/decryption, expiration claim management
 - **Delegates to**: `jose` library for JWE standard implementation
-- **Note**: Different from `lib/crypto.ts` (which uses AES-256-CBC for database encryption)
+- **Note**: Different from `lib/crypto.ts` (which handles app data encryption for database-backed secrets)
 
 ## Local Patterns
 - **Algorithm**: A256GCM (AES-256-GCM) with direct encryption (dir)

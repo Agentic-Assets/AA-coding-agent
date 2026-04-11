@@ -1,3 +1,8 @@
+# Agent skill assets and templates are external reference material, not app source.
+.agents/skills/**
+.claude/skills/**
+.cursor/skills/**
+
 # Template files with placeholders
 .claude/skills/**/templates/**
 .claude/skills/**/assets/templates/**
