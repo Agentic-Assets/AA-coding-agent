@@ -6,6 +6,7 @@ This directory is for living product and developer documentation.
 
 - `MCP_GUIDE.md` - User-facing MCP quickstart
 - `MCP_SERVER.md` - MCP server reference and configuration details
+- `VERCEL_SANDBOX_MODERNIZATION_PLAN.md` - Sandbox upgrade plan for snapshots, persistence, and April 2026 capabilities
 
 ## Canonical Root Docs
 
