@@ -6,10 +6,40 @@ import { eq, and } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { createGitHubSession, saveSession } from '@/lib/session/create-github'
 import { encrypt } from '@/lib/crypto'
+import { isAllowedProxyOrigin, verifyState } from '@/lib/auth/github-oauth-state'
 
 export async function GET(req: NextRequest): Promise<Response> {
   const code = req.nextUrl.searchParams.get('code')
-  const state = req.nextUrl.searchParams.get('state')
+  const rawState = req.nextUrl.searchParams.get('state')
+
+  // Preview-deployment proxy step: when a Vercel preview initiated OAuth,
+  // GitHub redirects to the *production* callback (the only URL registered
+  // with the OAuth App) with a signed state that encodes the preview
+  // origin. We verify the signature, then 302 the browser back to the
+  // preview's callback with the original opaque state so the preview can
+  // read its own cookies and complete the token exchange. We must not run
+  // token exchange here because the session cookie must be set on the
+  // preview origin (vercel.app is on the Public Suffix List, so cookies
+  // cannot be shared across preview subdomains).
+  if (code !== null && rawState !== null) {
+    const verified = verifyState(rawState)
+    if (verified !== null && verified.origin !== req.nextUrl.origin) {
+      if (!isAllowedProxyOrigin(verified.origin)) {
+        return new Response('Invalid OAuth state origin', { status: 400 })
+      }
+      const forward = new URL('/api/auth/github/callback', verified.origin)
+      forward.searchParams.set('code', code)
+      forward.searchParams.set('state', verified.state)
+      return Response.redirect(forward.toString(), 302)
+    }
+  }
+
+  // If the request arrived with a signed state whose origin matches the
+  // current origin, that means either this is production signing in
+  // normally (unlikely — signin route only signs on previews) or a stale
+  // forwarded request. Fall through with the inner state so existing
+  // cookie-based CSRF validation works.
+  const state = rawState !== null ? (verifyState(rawState)?.state ?? rawState) : null
   const cookieStore = await cookies()
 
   // Check if this is a sign-in flow or connect flow

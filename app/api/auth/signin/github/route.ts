@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { generateState } from 'arctic'
 import { isRelativeUrl } from '@/lib/utils/is-relative-url'
 import { getSessionFromReq } from '@/lib/session/server'
+import { getProductionCallbackUrl, signState } from '@/lib/auth/github-oauth-state'
 
 export async function GET(req: NextRequest): Promise<Response> {
   // Check if user is already authenticated with Vercel
@@ -15,7 +16,12 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 
   const clientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID
-  const redirectUri = `${req.nextUrl.origin}/api/auth/github/callback`
+  // On Vercel preview deployments, GitHub won't accept our per-commit
+  // callback URL (it only trusts the single registered production URL).
+  // Route `redirect_uri` through production; the production callback
+  // verifies a signed state and forwards the `code` back here.
+  const productionCallback = getProductionCallbackUrl('/api/auth/github/callback')
+  const redirectUri = productionCallback ?? `${req.nextUrl.origin}/api/auth/github/callback`
 
   if (!clientId) {
     return Response.redirect(new URL('/?error=github_not_configured', req.url))
@@ -61,12 +67,21 @@ export async function GET(req: NextRequest): Promise<Response> {
     })
   }
 
+  // When proxying through production, GitHub receives a signed state that
+  // encodes the preview origin. The production callback verifies the
+  // signature and forwards the `code` back to that origin, which then reads
+  // its own `github_auth_state` cookie (containing the original `state`)
+  // to complete CSRF validation. If signing is unavailable (missing
+  // JWE_SECRET) we fall back to the raw state and the flow behaves as if
+  // no proxy were in use.
+  const outboundState = productionCallback ? (signState({ state, origin: req.nextUrl.origin }) ?? state) : state
+
   // Build GitHub authorization URL
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     scope: 'repo,read:user,user:email',
-    state: state,
+    state: outboundState,
   })
 
   const url = `https://github.com/login/oauth/authorize?${params.toString()}`
