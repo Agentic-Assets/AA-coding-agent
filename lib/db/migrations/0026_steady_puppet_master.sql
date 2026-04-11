@@ -45,7 +45,6 @@ CREATE TABLE "sandbox_workspaces" (
 	CONSTRAINT "sandbox_workspaces_workspace_name_unique" UNIQUE("workspace_name")
 );
 --> statement-breakpoint
-ALTER TABLE "tasks" ADD COLUMN "heartbeat_extension_count" integer DEFAULT 0;--> statement-breakpoint
 ALTER TABLE "tasks" ADD COLUMN "sandbox_mode" text;--> statement-breakpoint
 ALTER TABLE "tasks" ADD COLUMN "setup_profile_key" text;--> statement-breakpoint
 ALTER TABLE "tasks" ADD COLUMN "snapshot_id" text;--> statement-breakpoint

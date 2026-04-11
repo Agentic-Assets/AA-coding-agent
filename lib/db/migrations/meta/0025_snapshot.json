@@ -804,6 +804,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "heartbeat_extension_count": {
+          "name": "heartbeat_extension_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
         }
       },
       "indexes": {
