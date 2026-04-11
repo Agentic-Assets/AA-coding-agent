@@ -21,6 +21,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   // token exchange here because the session cookie must be set on the
   // preview origin (vercel.app is on the Public Suffix List, so cookies
   // cannot be shared across preview subdomains).
+  const looksSigned = rawState !== null && rawState.startsWith('v1.')
   if (code !== null && rawState !== null) {
     const verified = verifyState(rawState)
     if (verified !== null && verified.origin !== req.nextUrl.origin) {
@@ -31,6 +32,17 @@ export async function GET(req: NextRequest): Promise<Response> {
       forward.searchParams.set('code', code)
       forward.searchParams.set('state', verified.state)
       return Response.redirect(forward.toString(), 302)
+    }
+    // Signed shape but HMAC didn't verify. Almost always means JWE_SECRET
+    // differs between the deployment that signed (preview) and the
+    // deployment that's verifying (production). Don't fall through to
+    // cookie validation — it has no context here and would return a
+    // misleading "Invalid OAuth state".
+    if (looksSigned && verified === null) {
+      return new Response(
+        'OAuth proxy signature verification failed. JWE_SECRET must be identical across Preview and Production environments in Vercel project settings.',
+        { status: 400 },
+      )
     }
   }
 
