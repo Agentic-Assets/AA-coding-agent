@@ -737,7 +737,9 @@ export const sandboxWorkspaces = pgTable(
     // Most recent task using this workspace; SET NULL on task delete
     taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
     // Owner — matches tasks.userId type (text)
-    userId: text('user_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     repoUrl: text('repo_url').notNull(),
     // Current live sandbox id if one is active; null when idle/expired
     sandboxId: text('sandbox_id'),
