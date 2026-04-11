@@ -56,7 +56,7 @@ comment on table "public"."accounts" is
   'Additional linked accounts (e.g., GitHub connected to Vercel user). Allows a user to authenticate via multiple providers. One account per provider per user (unique constraint on user_id + provider).';
 
 comment on table "public"."keys" is
-  'User API keys for various AI services (Anthropic, OpenAI, Cursor, Gemini, AI Gateway, GitHub). Values are encrypted at rest using AES-256-CBC. One key per provider per user (unique constraint on user_id + provider).';
+  'User API keys for various AI services (Anthropic, OpenAI, Cursor, Gemini, AI Gateway, GitHub). Values are encrypted at rest using AES-256-GCM. One key per provider per user (unique constraint on user_id + provider).';
 
 comment on table "public"."tasks" is
   'Coding tasks created by users. Tracks execution status, logs (JSONB array), PR information, sandbox ID, and sub-agent activity. Supports soft deletes via deletedAt column. Heartbeat tracking for timeout extension during long-running tasks.';
