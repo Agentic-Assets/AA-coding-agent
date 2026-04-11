@@ -30,3 +30,13 @@ Orchestrate Vercel sandbox lifecycle: creation, environment setup, dependency de
 - `sandbox-registry.ts` - `registerSandbox()`, `unregisterSandbox()`, `getSandbox()`, `killSandbox()` for lifecycle tracking
 - `types.ts` - AgentExecutionResult, CancellationCheckFn type definitions
 - `config.ts`, `port-detection.ts` - Configuration and port detection utilities
+- `feature-flags.ts` - Phase 0 feature flags (snapshots, persistent, network-policy, node24-default)
+- `telemetry.ts` - Lifecycle event emission with 8-phase taxonomy
+- `manager.ts` - Sandbox orchestration layer (Phase 0 stub delegating to creation.ts/git.ts)
+- `profiles.ts` - Setup profile fingerprinting for snapshot matching (Phase 0 stub)
+- `snapshots.ts` - Snapshot registry helpers (Phase 0 stub)
+- `persistent.ts` - Named persistent sandbox helpers (Phase 0 stub)
+- `health.ts` - Health checks and restore-error classifier (Phase 0 stub)
+
+## Phase 0 Status
+Task 2 scaffolded `manager.ts`, `profiles.ts`, `snapshots.ts`, `persistent.ts`, `health.ts` as stubs; Task 5 added `telemetry.ts` and instrumentation in `creation.ts`. All new modules delegate to existing `creation.ts` and `git.ts` during Phase 0. Phase 1 will implement snapshot logic; Phase 2 will implement persistent sandbox support. See `docs/VERCEL_SANDBOX_MODERNIZATION_PLAN.md` for timeline.

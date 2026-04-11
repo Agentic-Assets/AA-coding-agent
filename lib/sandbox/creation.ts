@@ -7,6 +7,8 @@ import { redactSensitiveInfo } from '@/lib/utils/logging'
 import { TaskLogger } from '@/lib/utils/task-logger'
 import { detectPackageManager, installDependencies } from './package-manager'
 import { registerSandbox } from './sandbox-registry'
+import { isNode24DefaultEnabled } from './feature-flags'
+import { startSandboxPhaseTimer, emitSandboxLifecycleEvent, measureSandboxPhase } from './telemetry'
 
 // Helper function to run command and log it
 async function runAndLogCommand(sandbox: Sandbox, command: string, args: string[], logger: TaskLogger, cwd?: string) {
@@ -77,6 +79,10 @@ export async function createSandbox(config: SandboxConfig, logger: TaskLogger): 
     // Default to both 3000 (Next.js) and 5173 (Vite) for now
     const defaultPorts = config.ports || [3000, 5173]
 
+    // Determine runtime: use config.runtime if explicitly set, otherwise apply
+    // the node24 feature flag (opt-out; default ON to match SDK 1.9.3 default).
+    const resolvedRuntime = config.runtime || (isNode24DefaultEnabled() ? 'node24' : 'node22')
+
     // Create sandbox without source - we'll clone manually to /vercel/sandbox/project
     const sandboxConfig = {
       teamId: process.env.SANDBOX_VERCEL_TEAM_ID!,
@@ -84,7 +90,7 @@ export async function createSandbox(config: SandboxConfig, logger: TaskLogger): 
       token: process.env.SANDBOX_VERCEL_TOKEN!,
       timeout: timeoutMs,
       ports: defaultPorts,
-      runtime: config.runtime || 'node22',
+      runtime: resolvedRuntime,
       resources: { vcpus: config.resources?.vcpus || 4 },
     }
 
@@ -95,7 +101,13 @@ export async function createSandbox(config: SandboxConfig, logger: TaskLogger): 
 
     let sandbox: Sandbox
     try {
-      sandbox = await Sandbox.create(sandboxConfig)
+      // Phase telemetry: sandbox.create — wraps only the Sandbox.create() call.
+      // Uses measureSandboxPhase so no new try/catch is introduced; the existing
+      // outer try/catch still receives the original error unchanged.
+      sandbox = await measureSandboxPhase('sandbox.create', () => Sandbox.create(sandboxConfig), {
+        mode: 'fresh',
+        errorClassifier: (err) => (err instanceof Error ? (err.name ?? 'unknown') : 'unknown'),
+      })
       await logger.info('Sandbox created successfully')
 
       // Register the sandbox immediately for potential killing
@@ -269,8 +281,18 @@ export async function createSandbox(config: SandboxConfig, logger: TaskLogger): 
           await config.onProgress(35, 'Installing Node.js dependencies...')
         }
 
+        // Phase telemetry: sandbox.deps.install
+        const _depsInstallTimer = startSandboxPhaseTimer('sandbox.deps.install')
+
         // Install dependencies with the detected package manager
         const installResult = await installDependencies(sandbox, packageManager, logger)
+
+        emitSandboxLifecycleEvent(
+          _depsInstallTimer.stop({
+            status: installResult.success ? 'success' : 'failure',
+            mode: 'fresh',
+          }),
+        )
 
         // Check for cancellation after dependency installation
         if (config.onCancellationCheck && (await config.onCancellationCheck())) {
@@ -391,6 +413,9 @@ export async function createSandbox(config: SandboxConfig, logger: TaskLogger): 
           if (hasDevScript) {
             await logger.info('Dev script detected, starting development server...')
 
+            // Phase telemetry: sandbox.devserver.ready
+            const _devServerTimer = startSandboxPhaseTimer('sandbox.devserver.ready')
+
             const packageManager = await detectPackageManager(sandbox, logger)
             let devCommand = packageManager === 'npm' ? 'npm' : packageManager
             let devArgs = packageManager === 'npm' ? ['run', 'dev'] : ['dev']
@@ -496,12 +521,25 @@ fi
             await new Promise((resolve) => setTimeout(resolve, 3000))
             domain = sandbox.domain(devPort)
             await logger.info('Development server is running')
+
+            // Emit success: dev server launched and domain is available.
+            emitSandboxLifecycleEvent(_devServerTimer.stop({ status: 'success', mode: 'fresh' }))
+          } else {
+            // No dev script — emit skipped so restore-hit-rate denominators stay consistent.
+            emitSandboxLifecycleEvent(
+              startSandboxPhaseTimer('sandbox.devserver.ready').stop({ status: 'skipped', mode: 'fresh' }),
+            )
           }
         } catch (parseError) {
           // If package.json parsing fails, just continue without starting dev server
           await logger.info('Could not parse package.json, skipping auto-start of dev server')
         }
       }
+    } else {
+      // Dev server phase skipped: no package.json, or installDependencies is false.
+      emitSandboxLifecycleEvent(
+        startSandboxPhaseTimer('sandbox.devserver.ready').stop({ status: 'skipped', mode: 'fresh' }),
+      )
     }
 
     // If domain wasn't set by dev server, get it now

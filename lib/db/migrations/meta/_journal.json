@@ -183,6 +183,20 @@
       "when": 1769049600000,
       "tag": "0025_add_rate_limit_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1775943722370,
+      "tag": "0028_steady_puppet_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1775944312833,
+      "tag": "0029_damp_hellfire_club",
+      "breakpoints": true
     }
   ]
 }

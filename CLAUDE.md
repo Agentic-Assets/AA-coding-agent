@@ -391,6 +391,15 @@ Adding new tabs:
 - `MAX_MESSAGES_PER_DAY` - Rate limit (default: 20)
 - `NEXT_PUBLIC_ADMIN_EMAIL_DOMAINS` - Admin email domains for 100/day limit
 
+### Sandbox (Phase 0)
+Phase 0 introduces feature flags to gate new sandbox capabilities (implemented in `lib/sandbox/feature-flags.ts`). All flags are off by default except `SANDBOX_USE_NODE24_DEFAULT` (opt-out):
+- `SANDBOX_ENABLE_SNAPSHOTS` - Enable snapshot-based sandbox creation (Phase 1+)
+- `SANDBOX_ENABLE_PERSISTENT` - Enable named persistent sandboxes (Phase 2+)
+- `SANDBOX_ENABLE_NETWORK_POLICY` - Enable network policy configuration (Phase 1+)
+- `SANDBOX_USE_NODE24_DEFAULT` - Use Node.js 24 runtime (default ON; set to `0` to opt-out to Node 22)
+
+See `docs/VERCEL_SANDBOX_MODERNIZATION_PLAN.md` for rollout plan. **Telemetry**: `lib/sandbox/telemetry.ts` emits lifecycle events as `console.info('[sandbox.telemetry]', ...)` (currently stdout-only; Phase 1 will route to durable sink).
+
 ## Key Implementation Patterns
 
 ### User-Scoped Data Access

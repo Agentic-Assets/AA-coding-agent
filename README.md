@@ -404,6 +404,14 @@ These API keys can be set globally (fallback for all users) or left unset to req
 - `MAX_MESSAGES_PER_DAY`: Maximum number of tasks + follow-ups per user per day (default: `20`)
 - `NEXT_PUBLIC_ADMIN_EMAIL_DOMAINS`: Comma-separated admin email domains for a 100/day limit (example: `@agenticassets.ai,@reitfactors.ai`)
 
+**Sandbox (Phase 0 Feature Flags)**:
+- `SANDBOX_ENABLE_SNAPSHOTS` - Enable snapshot-based sandbox creation (default: off)
+- `SANDBOX_ENABLE_PERSISTENT` - Enable named persistent sandboxes (default: off)
+- `SANDBOX_ENABLE_NETWORK_POLICY` - Enable network policy configuration (default: off)
+- `SANDBOX_USE_NODE24_DEFAULT` - Use Node.js 24 runtime (default: on; set to `0` to use Node 22)
+
+See [docs/VERCEL_SANDBOX_MODERNIZATION_PLAN.md](docs/VERCEL_SANDBOX_MODERNIZATION_PLAN.md) for Phase 0 rollout details.
+
 ### 4. Set up OAuth Applications
 
 Based on your `NEXT_PUBLIC_AUTH_PROVIDERS` configuration, you'll need to create OAuth apps:
