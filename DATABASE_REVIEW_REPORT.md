@@ -668,7 +668,7 @@ maxDuration: integer('max_duration')
 
 ### ✓ EXCELLENT: Encryption Coverage
 
-**Encrypted fields (AES-256-CBC via lib/crypto.ts):**
+**Encrypted fields (AES-256-GCM via lib/crypto.ts; AES-256-CBC for legacy decrypt only):**
 ```typescript
 // OAuth tokens
 accessToken: text('access_token').notNull(),  // ✓ Encrypted
