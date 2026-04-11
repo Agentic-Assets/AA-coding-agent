@@ -260,7 +260,7 @@ export function TaskSidebar({ tasks, width = 288 }: TaskSidebarProps) {
         }
       })
     },
-    [startReposTransition],
+    [startReposTransition, reposLoading],
   )
 
   // Load repos when switching to repos tab or when GitHub is connected
