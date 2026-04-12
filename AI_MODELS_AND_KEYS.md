@@ -1190,7 +1190,7 @@ const redactedCommand = fullCommand.replace(process.env.ANTHROPIC_API_KEY!, '[RE
 await logger.command(redactedCommand)
 ```
 
-See `CLAUDE.md` and `AGENTS.md` for complete logging guidelines.
+See `CLAUDE.md` for logging and security guidelines.
 
 ### 3. User Scoping
 
@@ -1378,7 +1378,7 @@ const AGENT_MODELS = {
 ### Related Documentation
 
 - `CLAUDE.md` - Project-specific guidelines
-- `AGENTS.md` - Complete security and logging guidelines
+- `CLAUDE.md` - Security, logging, and agent guidelines
 - `README.md` - General project setup and features
 - [Vercel AI SDK 5 Docs](https://sdk.vercel.ai/docs)
 - [Vercel AI Gateway Docs](https://vercel.com/docs/ai-gateway)

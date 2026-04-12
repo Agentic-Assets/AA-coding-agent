@@ -12,7 +12,7 @@ This directory is for living product and developer documentation.
 
 - `../README.md` - Product overview, setup, and deployment
 - `../AI_MODELS_AND_KEYS.md` - API key and model reference
-- `../AGENTS.md` - Repo-wide agent rules and security requirements
+- `../CLAUDE.md` - Canonical agent guide (root `AGENTS.md` is a one-line `@CLAUDE.md` pointer)
 - `../CLAUDE.md` - High-level codebase guidance plus links to modular `CLAUDE.md` files
 
 ## Documentation Policy

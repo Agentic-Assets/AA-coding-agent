@@ -558,7 +558,7 @@ vercel inspect <deployment-url> --wait
 - **Encryption**: All sensitive data (tokens, API keys) is encrypted at rest using per-user encryption
   - If `ENCRYPTION_KEY` is missing, encrypted data cannot be retrieved and system falls back to environment variable defaults
   - If `JWE_SECRET` is missing, session cookies cannot be validated - users will need to re-authenticate
-  - See [AGENTS.md](AGENTS.md) for detailed error handling patterns in the codebase
+  - See [CLAUDE.md](CLAUDE.md) for agent rules, security/logging, and error-handling patterns
 
 ## Changelog
 

@@ -16,7 +16,7 @@ Help implement and debug components and hooks with correct server/client boundar
 
 ## Constraints (repo invariants)
 
-- Treat `AGENTS.md` and the root `CLAUDE.md` as authoritative.
+- Treat the root `CLAUDE.md` as authoritative (root `AGENTS.md` points to it).
 - **Server/Client Split**: Prefer Server Components by default; only add `"use client"` when interactivity or browser APIs are required. Keep boundaries small.
 - **Styling (CRITICAL)**: Use Tailwind CSS v4. All interactive component font-sizing MUST use CSS variables with `clamp()` for responsive scaling (e.g., `style={{ fontSize: 'var(--auth-body-text, 0.875rem)' }}`). NEVER hardcode Tailwind text classes (e.g., `text-sm`).
 - **shadcn/ui**: Use the `new-york-v4` variant. Use MCP tools (`mcp_shadcn_*`) for component discovery and installation.

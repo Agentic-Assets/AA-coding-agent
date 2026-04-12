@@ -7,6 +7,9 @@
 .claude/skills/**/templates/**
 .claude/skills/**/assets/templates/**
 
+# Nested git worktrees carry their own tree; do not format them from the outer checkout
+.claude/worktrees/**
+
 # Node modules
 node_modules
 
